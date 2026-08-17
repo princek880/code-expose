@@ -39,6 +39,20 @@
   "note": "Two rolling variables replace the whole call stack, and the memory drops from O(n) to O(1)."
  },
  {
+  "id": "python/nways/fibonacci-closed-form-binet",
+  "lang": "python",
+  "topic": "nways",
+  "tier": 3,
+  "tags": [
+   "nways",
+   "fibonacci",
+   "binet",
+   "closed-form"
+  ],
+  "code": "import math\n\nPHI = (1 + math.sqrt(5)) / 2\nPSI = (1 - math.sqrt(5)) / 2\n\ndef fib_binet(n):\n    return round((PHI ** n - PSI ** n) / math.sqrt(5))\n\nprint([fib_binet(n) for n in range(10)])\nprint(fib_binet(70), fib_binet(71))",
+  "note": "Binet's formula is O(1) per call but loses exact integer precision once phi^n overflows a float's mantissa."
+ },
+ {
   "id": "python/nways/fibonacci-fast-doubling",
   "lang": "python",
   "topic": "nways",
@@ -91,6 +105,20 @@
   "note": "The recursive version builds a list eagerly; the generator version streams and never holds it all at once."
  },
  {
+  "id": "python/nways/matrix-multiply-loop-vs-numpy",
+  "lang": "python",
+  "topic": "nways",
+  "tier": 2,
+  "tags": [
+   "nways",
+   "matrix-multiply",
+   "numpy",
+   "blas"
+  ],
+  "code": "import numpy as np\n\ndef multiply_naive(a, b):\n    n, m, k = len(a), len(b[0]), len(b)\n    c = [[0.0] * m for _ in range(n)]\n    for i in range(n):\n        for j in range(m):\n            for p in range(k):\n                c[i][j] += a[i][p] * b[p][j]\n    return c\n\na = [[1.0, 2.0], [3.0, 4.0]]\nb = [[5.0, 6.0], [7.0, 8.0]]\nnaive = multiply_naive(a, b)\nvia_blas = (np.array(a) @ np.array(b)).tolist()\nprint(naive, via_blas, np.allclose(naive, via_blas))",
+  "note": "The @ operator dispatches to BLAS; the triple loop is the same algorithm at roughly 100x the wall-clock cost."
+ },
+ {
   "id": "python/nways/memoize-manual-vs-decorator",
   "lang": "python",
   "topic": "nways",
@@ -102,6 +130,33 @@
   ],
   "code": "calls = {\"manual\": 0, \"cached\": 0}\n_cache = {}\n\ndef manual_square(n):\n    if n not in _cache:\n        calls[\"manual\"] += 1\n        _cache[n] = n * n\n    return _cache[n]\n\nfrom functools import lru_cache\n\n@lru_cache(maxsize=None)\ndef cached_square(n):\n    calls[\"cached\"] += 1\n    return n * n\n\nmanual_square(5); manual_square(5)\ncached_square(5); cached_square(5)\nprint(calls)",
   "note": "A hand-rolled dict cache and @lru_cache do the same job; the decorator just spares you the boilerplate."
+ },
+ {
+  "id": "python/nways/parallel-sum-sequential-vs-multiprocessing",
+  "lang": "python",
+  "topic": "nways",
+  "tier": 3,
+  "tags": [
+   "nways",
+   "parallel-sum",
+   "multiprocessing"
+  ],
+  "code": "from multiprocessing import Pool\n\ndef partial_sum(chunk):\n    return sum(chunk)\n\ndef main():\n    xs = list(range(100_000))\n    sequential = sum(xs)\n\n    chunks = [xs[i:i + 25_000] for i in range(0, len(xs), 25_000)]\n    with Pool(processes=4) as pool:\n        parallel = sum(pool.map(partial_sum, chunks))\n\n    return sequential, parallel\n\nif __name__ == \"__main__\":\n    print(main())",
+  "note": "multiprocessing sidesteps the GIL for CPU-bound work, but pickling the chunk and the result is not free."
+ },
+ {
+  "id": "python/nways/random-generator-api",
+  "lang": "python",
+  "topic": "nways",
+  "tier": 2,
+  "tags": [
+   "nways",
+   "random",
+   "numpy",
+   "generator"
+  ],
+  "code": "import numpy as np\nimport random\n\nlegacy_module_state = random.random()\nrng = np.random.default_rng(seed=0)\nindependent = rng.random(3)\nrng2 = np.random.default_rng(seed=0)\nprint(0 <= legacy_module_state < 1, independent.shape, np.array_equal(independent, rng2.random(3)))",
+  "note": "np.random.default_rng is the modern PCG64-based API; the legacy np.random.* calls share hidden global state."
  },
  {
   "id": "python/nways/random-lcg-vs-stdlib",
@@ -130,6 +185,99 @@
   "note": "random is a Mersenne Twister and predictable from its output; secrets is the CSPRNG for anything sensitive."
  },
  {
+  "id": "python/nways/random-xorshift",
+  "lang": "python",
+  "topic": "nways",
+  "tier": 3,
+  "tags": [
+   "nways",
+   "random",
+   "xorshift"
+  ],
+  "code": "def xorshift32(seed):\n    state = seed & 0xFFFFFFFF\n    while True:\n        state ^= (state << 13) & 0xFFFFFFFF\n        state ^= (state >> 17)\n        state ^= (state << 5) & 0xFFFFFFFF\n        yield state\n\ngen = xorshift32(12345)\ndraws = [next(gen) for _ in range(5)]\nprint(draws, all(0 <= x < 2 ** 32 for x in draws))",
+  "note": "Xorshift is three shift-xors and no multiply, which is why it out-benchmarks an LCG on most hardware."
+ },
+ {
+  "id": "python/nways/read-file-chunks",
+  "lang": "python",
+  "topic": "nways",
+  "tier": 2,
+  "tags": [
+   "nways",
+   "file-io",
+   "chunks",
+   "streaming"
+  ],
+  "code": "from pathlib import Path\n\np = Path(\"nways_demo4.txt\")\np.write_text(\"x\" * 10_000)\n\ntotal = 0\nwith p.open() as f:\n    while chunk := f.read(1024):\n        total += len(chunk)\n\nprint(total)\np.unlink()",
+  "note": "Reading fixed-size chunks bounds memory use regardless of file size; read() with no argument does not."
+ },
+ {
+  "id": "python/nways/read-file-context-manager",
+  "lang": "python",
+  "topic": "nways",
+  "tier": 1,
+  "tags": [
+   "nways",
+   "file-io",
+   "context-manager"
+  ],
+  "code": "from pathlib import Path\n\np = Path(\"nways_demo.txt\")\np.write_text(\"line one\\nline two\\nline three\\n\")\n\nwith p.open() as f:\n    whole = f.read()\n\nprint(len(whole), whole.count(\"\\n\"))\np.unlink()",
+  "note": "The with block closes the file even if an exception fires partway through reading it."
+ },
+ {
+  "id": "python/nways/read-file-csv-module",
+  "lang": "python",
+  "topic": "nways",
+  "tier": 2,
+  "tags": [
+   "nways",
+   "file-io",
+   "csv"
+  ],
+  "code": "import csv\nfrom pathlib import Path\n\np = Path(\"nways_demo5.csv\")\np.write_text('name,age\\n\"Doe, Jane\",30\\nBob,25\\n')\n\nwith p.open(newline=\"\") as f:\n    rows = list(csv.DictReader(f))\n\nnaive = [line.split(\",\") for line in p.read_text().splitlines()[1:]]\nprint(rows, len(naive[0]) != 2)\np.unlink()",
+  "note": "The csv module handles quoting and embedded commas that a naive line.split(\",\") silently gets wrong."
+ },
+ {
+  "id": "python/nways/read-file-line-iteration",
+  "lang": "python",
+  "topic": "nways",
+  "tier": 1,
+  "tags": [
+   "nways",
+   "file-io",
+   "iteration",
+   "lazy"
+  ],
+  "code": "from pathlib import Path\n\np = Path(\"nways_demo2.txt\")\np.write_text(\"a\\nb\\nc\\n\")\n\ntotal_chars = 0\nwith p.open() as f:\n    for line in f:\n        total_chars += len(line.rstrip(\"\\n\"))\n\nprint(total_chars)\np.unlink()",
+  "note": "Iterating the file object streams one line at a time; readlines() would load the whole file into a list first."
+ },
+ {
+  "id": "python/nways/read-file-pathlib-shortcuts",
+  "lang": "python",
+  "topic": "nways",
+  "tier": 1,
+  "tags": [
+   "nways",
+   "file-io",
+   "pathlib"
+  ],
+  "code": "from pathlib import Path\n\np = Path(\"nways_demo3.txt\")\np.write_text(\"hello\\nworld\\n\", encoding=\"utf-8\")\n\ntext = p.read_text(encoding=\"utf-8\")\nlines = p.read_text().splitlines()\nraw = p.read_bytes()\nprint(text.count(\"\\n\"), lines, len(raw))\np.unlink()",
+  "note": "read_text and read_bytes open, read and close in one call, with no explicit context manager needed."
+ },
+ {
+  "id": "python/nways/string-reverse-slice-vs-loop",
+  "lang": "python",
+  "topic": "nways",
+  "tier": 1,
+  "tags": [
+   "nways",
+   "string-reverse",
+   "slice"
+  ],
+  "code": "s = \"hello world\"\n\nvia_slice = s[::-1]\nvia_reversed_join = \"\".join(reversed(s))\n\nmanual = \"\"\nfor ch in s:\n    manual = ch + manual\n\nprint(via_slice, via_slice == via_reversed_join == manual)",
+  "note": "The [::-1] slice reverses in C at the interpreter level; the manual loop rebuilds the string one character at a time."
+ },
+ {
   "id": "python/nways/sum-loop-vs-builtin",
   "lang": "python",
   "topic": "nways",
@@ -141,6 +289,19 @@
   ],
   "code": "from functools import reduce\n\nxs = [1, 2, 3, 4, 5]\n\nmanual = 0\nfor x in xs:\n    manual += x\n\nbuiltin = sum(xs)\nreduced = reduce(lambda a, b: a + b, xs)\nprint(manual, builtin, reduced, manual == builtin == reduced)",
   "note": "sum() is a tight C loop; a hand-written loop and reduce do the identical work at Python speed."
+ },
+ {
+  "id": "python/nways/sum-numpy-vectorized",
+  "lang": "python",
+  "topic": "nways",
+  "tier": 1,
+  "tags": [
+   "nways",
+   "sum",
+   "numpy"
+  ],
+  "code": "import numpy as np\n\nxs = list(range(1, 6))\narr = np.array(xs)\n\nmanual = 0\nfor x in xs:\n    manual += x\n\nbuiltin = sum(xs)\nvectorized = int(np.sum(arr))\nprint(manual, builtin, vectorized, manual == builtin == vectorized)",
+  "note": "np.sum runs a compiled reduction over contiguous memory; the Python loop pays interpreter overhead per element."
  },
  {
   "id": "python/nways/swap-tuple-vs-temp",

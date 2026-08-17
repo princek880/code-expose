@@ -27,6 +27,20 @@
   "note": "The recursive version recomputes every subproblem exponentially; the loop computes each one exactly once."
  },
  {
+  "id": "cpp/nways/matrix-multiply-blocked",
+  "lang": "cpp",
+  "topic": "nways",
+  "tier": 4,
+  "tags": [
+   "nways",
+   "matrix-multiply",
+   "blocking",
+   "cache"
+  ],
+  "code": "#include <vector>\n\nusing Mat = std::vector<std::vector<double>>;\n\nMat multiply_blocked(const Mat& a, const Mat& b, std::size_t block = 2) {\n    std::size_t n = a.size(), m = b[0].size(), k = b.size();\n    Mat c(n, std::vector<double>(m, 0.0));\n\n    for (std::size_t ii = 0; ii < n; ii += block) {\n        for (std::size_t jj = 0; jj < m; jj += block) {\n            for (std::size_t pp = 0; pp < k; pp += block) {\n                for (std::size_t i = ii; i < std::min(ii + block, n); ++i) {\n                    for (std::size_t p = pp; p < std::min(pp + block, k); ++p) {\n                        double aip = a[i][p];\n                        for (std::size_t j = jj; j < std::min(jj + block, m); ++j) {\n                            c[i][j] += aip * b[p][j];\n                        }\n                    }\n                }\n            }\n        }\n    }\n    return c;\n}\n\nint demo() {\n    Mat a{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}};\n    Mat b{{9, 8, 7}, {6, 5, 4}, {3, 2, 1}};\n    auto c = multiply_blocked(a, b);\n    return static_cast<int>(c[0][0] + c[2][2]);\n}",
+  "note": "A block fits in cache, so each element loaded is reused block-many times before eviction, unlike the plain loop."
+ },
+ {
   "id": "cpp/nways/matrix-multiply-loop-reordered",
   "lang": "cpp",
   "topic": "nways",
@@ -53,6 +67,20 @@
   "note": "The textbook i-j-k loop order strides down each column of B, which is the cache-unfriendly access pattern."
  },
  {
+  "id": "cpp/nways/parallel-sum-openmp",
+  "lang": "cpp",
+  "topic": "nways",
+  "tier": 3,
+  "tags": [
+   "nways",
+   "parallel-sum",
+   "openmp",
+   "pragma"
+  ],
+  "code": "#include <omp.h>\n#include <vector>\n\nlong long parallel_sum_omp(const std::vector<int>& xs) {\n    long long total = 0;\n#pragma omp parallel for reduction(+:total)\n    for (int i = 0; i < static_cast<int>(xs.size()); ++i) {\n        total += xs[static_cast<std::size_t>(i)];\n    }\n    return total;\n}\n\nint demo() {\n    std::vector<int> xs(1000, 1);\n    long long sequential = 0;\n    for (int x : xs) sequential += x;\n    long long parallel = parallel_sum_omp(xs);\n    return static_cast<int>(sequential == parallel) + static_cast<int>(parallel % 1000);\n}",
+  "note": "The reduction clause gives each thread a private accumulator and sums them at the loop's exit, avoiding a data race."
+ },
+ {
   "id": "cpp/nways/parallel-sum-threads-vs-reduce",
   "lang": "cpp",
   "topic": "nways",
@@ -64,6 +92,48 @@
   ],
   "code": "#include <execution>\n#include <numeric>\n#include <thread>\n#include <vector>\n\nlong long manual_parallel_sum(const std::vector<int>& xs, int workers) {\n    std::vector<long long> partial(static_cast<std::size_t>(workers), 0);\n    std::vector<std::thread> threads;\n    std::size_t chunk = xs.size() / static_cast<std::size_t>(workers);\n\n    for (int w = 0; w < workers; ++w) {\n        threads.emplace_back([&, w] {\n            std::size_t start = static_cast<std::size_t>(w) * chunk;\n            std::size_t end = (w == workers - 1) ? xs.size() : start + chunk;\n            long long sum = 0;\n            for (std::size_t i = start; i < end; ++i) sum += xs[i];\n            partial[static_cast<std::size_t>(w)] = sum;\n        });\n    }\n    for (auto& t : threads) t.join();\n\n    long long total = 0;\n    for (long long p : partial) total += p;\n    return total;\n}\n\nint demo() {\n    std::vector<int> xs(1000, 1);\n    long long manual = manual_parallel_sum(xs, 4);\n    long long via_reduce = std::reduce(std::execution::par, xs.begin(), xs.end(), 0LL);\n    return static_cast<int>(manual == via_reduce) + static_cast<int>(manual % 1000);\n}",
   "note": "Hand-split threads need a manual join and combine step that std::reduce(par) does for you internally."
+ },
+ {
+  "id": "cpp/nways/random-mt19937-distribution",
+  "lang": "cpp",
+  "topic": "nways",
+  "tier": 2,
+  "tags": [
+   "nways",
+   "random",
+   "mt19937",
+   "distribution"
+  ],
+  "code": "#include <random>\n\nint demo() {\n    std::random_device rd;\n    std::mt19937 engine(rd());\n    std::mt19937 seeded_engine(42);\n\n    std::uniform_int_distribution<int> dice(1, 6);\n    std::uniform_real_distribution<double> unit(0.0, 1.0);\n    std::normal_distribution<double> gauss(0.0, 1.0);\n\n    int roll = dice(seeded_engine);\n    double u = unit(seeded_engine);\n    double g = gauss(seeded_engine);\n\n    return static_cast<int>(roll >= 1 && roll <= 6) + static_cast<int>(u >= 0.0 && u < 1.0)\n         + static_cast<int>(g == g);\n}",
+  "note": "The engine produces raw bits; the distribution shapes them, so mt19937 alone is not a uniform int generator."
+ },
+ {
+  "id": "cpp/nways/read-file-getline-vs-slurp",
+  "lang": "cpp",
+  "topic": "nways",
+  "tier": 2,
+  "tags": [
+   "nways",
+   "file-io",
+   "ifstream",
+   "getline"
+  ],
+  "code": "#include <fstream>\n#include <iterator>\n#include <sstream>\n#include <string>\n\nstd::size_t demo() {\n    {\n        std::ofstream out(\"nways_demo.txt\");\n        out << \"line one\\nline two\\nline three\\n\";\n    }\n\n    std::size_t line_count = 0;\n    std::ifstream in(\"nways_demo.txt\");\n    std::string line;\n    while (std::getline(in, line)) ++line_count;\n\n    std::ifstream in2(\"nways_demo.txt\");\n    std::string whole((std::istreambuf_iterator<char>(in2)), std::istreambuf_iterator<char>());\n\n    std::remove(\"nways_demo.txt\");\n    return line_count + whole.size();\n}",
+  "note": "getline streams one line at a time; the istreambuf_iterator constructor slurps the whole file in one shot."
+ },
+ {
+  "id": "cpp/nways/read-file-stringstream-parse",
+  "lang": "cpp",
+  "topic": "nways",
+  "tier": 2,
+  "tags": [
+   "nways",
+   "file-io",
+   "stringstream",
+   "parsing"
+  ],
+  "code": "#include <fstream>\n#include <sstream>\n#include <string>\n#include <vector>\n\nstd::vector<int> demo() {\n    {\n        std::ofstream out(\"nways_ints.txt\");\n        out << \"10 20 30 40\\n\";\n    }\n\n    std::ifstream in(\"nways_ints.txt\");\n    std::stringstream buffer;\n    buffer << in.rdbuf();\n\n    std::vector<int> values;\n    int v{};\n    while (buffer >> v) values.push_back(v);\n\n    std::remove(\"nways_ints.txt\");\n    return values;\n}\n\nint main() {\n    auto v = demo();\n    return static_cast<int>(v.size()) + (v.empty() ? 0 : v.back() % 100);\n}",
+  "note": "Reading into a stringstream first decouples parsing from I/O, so the parse logic is trivially testable offline."
  },
  {
   "id": "cpp/nways/singleton-call-once",
@@ -79,6 +149,19 @@
   "note": "call_once with a static once_flag guarantees the initialiser runs exactly once, even racing across threads."
  },
  {
+  "id": "cpp/nways/singleton-crtp",
+  "lang": "cpp",
+  "topic": "nways",
+  "tier": 4,
+  "tags": [
+   "nways",
+   "singleton",
+   "crtp"
+  ],
+  "code": "template <typename Derived>\nclass SingletonBase {\npublic:\n    static Derived& instance() {\n        static Derived inst;\n        return inst;\n    }\n\nprotected:\n    SingletonBase() = default;\n};\n\nclass Logger : public SingletonBase<Logger> {\n    friend class SingletonBase<Logger>;\npublic:\n    int lines{0};\nprivate:\n    Logger() = default;\n};\n\nclass Config : public SingletonBase<Config> {\n    friend class SingletonBase<Config>;\npublic:\n    int version{1};\nprivate:\n    Config() = default;\n};\n\nint demo() {\n    Logger::instance().lines = 5;\n    Config::instance().version = 2;\n    return Logger::instance().lines + Config::instance().version\n         + static_cast<int>(&Logger::instance() == &Logger::instance());\n}",
+  "note": "A CRTP singleton base gives every derived class its own static instance with zero duplicated boilerplate."
+ },
+ {
   "id": "cpp/nways/singleton-meyers-vs-static-ptr",
   "lang": "cpp",
   "topic": "nways",
@@ -92,6 +175,19 @@
   "note": "A function-local static is guaranteed thread-safe initialisation since C++11; the raw pointer version is not."
  },
  {
+  "id": "cpp/nways/string-reverse-algorithm-vs-manual",
+  "lang": "cpp",
+  "topic": "nways",
+  "tier": 1,
+  "tags": [
+   "nways",
+   "string-reverse",
+   "two-pointer"
+  ],
+  "code": "#include <algorithm>\n#include <string>\n\nstd::string demo() {\n    std::string s = \"hello world\";\n\n    std::string via_algorithm = s;\n    std::reverse(via_algorithm.begin(), via_algorithm.end());\n\n    std::string manual = s;\n    std::size_t i = 0, j = manual.size() - 1;\n    while (i < j) {\n        std::swap(manual[i], manual[j]);\n        ++i; --j;\n    }\n    return via_algorithm == manual ? via_algorithm : \"mismatch\";\n}\n\nint main() {\n    auto s = demo();\n    return static_cast<int>(s.size());\n}",
+  "note": "std::reverse swaps two-pointer style in place; building a second string is an allocation the in-place version avoids."
+ },
+ {
   "id": "cpp/nways/sum-loop-vs-accumulate",
   "lang": "cpp",
   "topic": "nways",
@@ -103,6 +199,19 @@
   ],
   "code": "#include <numeric>\n#include <vector>\n\nint demo() {\n    std::vector<int> xs{1, 2, 3, 4, 5};\n\n    int manual = 0;\n    for (int x : xs) manual += x;\n\n    int via_accumulate = std::accumulate(xs.begin(), xs.end(), 0);\n    return manual + via_accumulate;\n}",
   "note": "std::accumulate is the STL name for reduce; both compile down to the same loop with -O2."
+ },
+ {
+  "id": "cpp/nways/sum-numpy-equivalent-simd",
+  "lang": "cpp",
+  "topic": "nways",
+  "tier": 3,
+  "tags": [
+   "nways",
+   "sum",
+   "vectorization"
+  ],
+  "code": "#include <numeric>\n#include <vector>\n\nint demo() {\n    std::vector<int> xs(1000);\n    for (int i = 0; i < 1000; ++i) xs[static_cast<std::size_t>(i)] = i;\n\n    long long manual = 0;\n    for (int x : xs) manual += x;\n\n    long long via_accumulate = std::accumulate(xs.begin(), xs.end(), 0LL);\n    return static_cast<int>(manual == via_accumulate) + static_cast<int>(manual % 1000);\n}",
+  "note": "-O2 auto-vectorizes this loop into SIMD adds; std::accumulate on the same data compiles to the identical assembly."
  },
  {
   "id": "cpp/nways/sum-reduce-execution-policy",
