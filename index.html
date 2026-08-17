@@ -87,16 +87,40 @@
   #results .note{color:var(--muted);font-size:.8em;margin-top:1.6em;line-height:1.5}
   #results .hint{color:var(--dim);font-size:.66em;letter-spacing:.08em;margin-top:3.4em;user-select:none;white-space:pre}
 
-  /* ---- switcher: summoned with tab+s, never on screen otherwise ---- */
-  #switch{font-size:.8em;line-height:2.1}
-  #switch .row{display:flex;gap:1.5ch;color:var(--muted)}
-  #switch .row.on{color:var(--fg)}
-  #switch .row.on .lbl::before{content:"›";position:absolute;margin-left:-1.6ch}
-  #switch .lbl{width:9ch;position:relative}
-  #switch .val{color:var(--fg)}
-  #switch .row:not(.on) .val{color:var(--muted)}
-  #switch .count{color:var(--muted);font-size:.85em;margin-top:1.8em}
-  #switch .hint{color:var(--dim);font-size:.8em;letter-spacing:.06em;margin-top:2.4em;white-space:pre}
+  /* ---- caret variants ---- */
+  #caret.block{border-radius:1px;opacity:.35}
+  #caret.underline{border-radius:1px}
+
+  /* ---- focus mode: the gear is the only chrome, and it hides while typing ---- */
+  #gear{
+    position:fixed;top:1.4em;right:1.6em;z-index:5;
+    width:2.2em;height:2.2em;display:grid;place-items:center;
+    color:var(--muted);font-size:1em;line-height:1;cursor:pointer;
+    border-radius:50%;user-select:none;
+    transition:opacity 160ms ease-out,color 160ms ease-out;
+  }
+  #gear:hover{color:var(--fg)}
+  /* Faded, but still clickable: with pointer-events:none a stationary cursor
+     already over the gear could never reach it, because nothing would move to
+     bring it back. Hovering re-reveals it via the mousemove handler anyway. */
+  body.focus #gear{opacity:0}
+
+  /* ---- settings: summoned by the gear or tab+s, absent otherwise ---- */
+  #settings{font-size:.8em;line-height:2.1}
+  #settings .row{display:flex;align-items:baseline;gap:1ch;color:var(--muted);cursor:pointer}
+  #settings .row.on{color:var(--fg)}
+  #settings .row.on .lbl::before{content:"›";position:absolute;margin-left:-1.6ch}
+  #settings .lbl{width:11ch;position:relative;flex:none}
+  #settings .val{color:var(--fg);min-width:14ch}
+  #settings .row:not(.on) .val{color:var(--muted)}
+  #settings .arrow{padding:0 .5ch;color:var(--dim);flex:none}
+  #settings .row:hover .arrow{color:var(--muted)}
+  #settings .arrow:hover{color:var(--fg)}
+  #settings .act{color:var(--muted);cursor:pointer;display:inline-block}
+  #settings .act:hover{color:var(--fg)}
+  #settings .sep{height:1.4em}
+  #settings .count{color:var(--muted);font-size:.85em;margin-top:1.4em}
+  #settings .hint{color:var(--dim);font-size:.8em;letter-spacing:.06em;margin-top:1.8em;white-space:pre}
 
   @media (prefers-reduced-motion:reduce){
     #caret{transition:none;animation:none}
@@ -104,6 +128,7 @@
 </style>
 </head>
 <body>
+<div id="gear" role="button" aria-label="settings" title="settings (tab+s)">⚙</div>
 <div id="wrap">
   <main id="app">
     <p id="meta"></p>
@@ -118,12 +143,13 @@
     <div class="hint" id="rHint"></div>
   </section>
 
-  <section id="switch" hidden>
-    <div class="row" data-key="lang"><span class="lbl">language</span><span class="val" id="swLang"></span></div>
-    <div class="row" data-key="topic"><span class="lbl">topic</span><span class="val" id="swTopic"></span></div>
-    <div class="row" data-key="tier"><span class="lbl">tier</span><span class="val" id="swTier"></span></div>
+  <section id="settings" hidden>
+    <div id="swRows"></div>
+    <div class="sep"></div>
+    <div><span class="act" id="actExport">export history</span></div>
+    <div><span class="act" id="actClear">clear history</span></div>
     <div class="count" id="swCount"></div>
-    <div class="hint">↑↓ row    ←→ value    enter apply    esc cancel</div>
+    <div class="hint">↑↓ row    ←→ value    enter done    esc close</div>
   </section>
 </div>
 
@@ -274,7 +300,7 @@ function hintFor(missed){
   return 'enter → next     esc → retry'
     + (missed ? '     p → practice ' + missed + (missed > 1 ? ' missed lines' : ' missed line') : '')
     + '     e → export history'
-    + '\ntab+s → switch     ↑↓ size     ←→ theme';
+    + '\ntab+s or ⚙ → settings     ↑↓ size     ←→ theme';
 }
 var curHint = hintFor(0);
 function setHint(h){ curHint = h; rHint.textContent = h; }
@@ -328,13 +354,19 @@ var SIZE_MIN = 12, SIZE_MAX = 34;
 var GUARD_MS = 800;
 var guardUntil = 0;
 
-var prefs = { theme: 'dark', size: 18, lang: '', topic: '', tier: '' };
+var CARETS = ['line', 'block', 'underline'];
+var prefs = { theme: 'dark', size: 18, lh: 1.7, caret: 'line', typeIndent: false,
+              lang: '', topic: '', tier: '' };
 try {
   var storedPrefs = JSON.parse(localStorage.getItem(PKEY) || '{}');
   if (storedPrefs && typeof storedPrefs === 'object') {
     if (THEMES.indexOf(storedPrefs.theme) !== -1) prefs.theme = storedPrefs.theme;
     var sz = Number(storedPrefs.size);
     if (sz >= SIZE_MIN && sz <= SIZE_MAX) prefs.size = sz;
+    var lh = Number(storedPrefs.lh);
+    if (lh >= 1.2 && lh <= 2.6) prefs.lh = Math.round(lh * 10) / 10;
+    if (CARETS.indexOf(storedPrefs.caret) !== -1) prefs.caret = storedPrefs.caret;
+    prefs.typeIndent = storedPrefs.typeIndent === true;
     ['lang', 'topic', 'tier'].forEach(function(k){
       if (typeof storedPrefs[k] === 'string') prefs[k] = storedPrefs[k];
     });
@@ -356,9 +388,30 @@ function savePrefs(){
 function applyTheme(){
   document.documentElement.setAttribute('data-theme', prefs.theme);
 }
-function applySize(){
-  document.documentElement.style.setProperty('--size', prefs.size + 'px');
-  if (S) { measure(); caret.style.height = LH + 'px'; moveCaret(true); }
+// Size and line-height both change layout, so the caret lookup table has to be
+// rebuilt -- the same path the resize handler uses.
+function applyMetrics(){
+  var root = document.documentElement.style;
+  root.setProperty('--size', prefs.size + 'px');
+  root.setProperty('--lh', String(prefs.lh));
+  if (S) { measure(); shapeCaret(); moveCaret(true); }
+}
+// A block or underline caret needs the character cell's width, which only
+// measure() knows, so caret geometry is set here rather than in CSS.
+function shapeCaret(){
+  caret.className = caret.className.replace(/\b(block|underline)\b/g, '').trim();
+  if (prefs.caret === 'block') {
+    caret.classList.add('block');
+    caret.style.width = (CW || 2) + 'px';
+    caret.style.height = LH + 'px';
+  } else if (prefs.caret === 'underline') {
+    caret.classList.add('underline');
+    caret.style.width = (CW || 2) + 'px';
+    caret.style.height = '2px';
+  } else {
+    caret.style.width = '2px';
+    caret.style.height = LH + 'px';
+  }
 }
 
 // Filter is all-optional; an empty result falls back to the whole pool so the
@@ -442,6 +495,7 @@ function flash(msg){
  * ------------------------------------------------------------------ */
 var S = null;
 var LH = 0;   // line box height, px
+var CW = 0;   // character cell width, px (block/underline caret)
 
 function load(snip){
   var lines = normalize(snip.code);
@@ -462,11 +516,21 @@ function load(snip){
     var indent = rawLine.match(/^ */)[0];
     var body = rawLine.slice(indent.length);
 
-    if (indent) {
+    if (indent && !prefs.typeIndent) {
       var ind = document.createElement('span');
       ind.className = 'ind';
       ind.textContent = indent;
       d.appendChild(ind);
+    } else if (indent) {
+      // Opt-in: the indent joins the typable stream, so it reaches the metrics
+      // and the keystroke log like any other character.
+      for (var q = 0; q < indent.length; q++) {
+        var isp = document.createElement('span');
+        isp.className = 'c sp pending';
+        isp.textContent = ' ';
+        d.appendChild(isp);
+        stream.push({ kind: 'c', ch: ' ', li: li, el: isp, base: 'c sp' });
+      }
     }
 
     for (var k = 0; k < body.length; k++) {
@@ -505,7 +569,7 @@ function load(snip){
   appEl.hidden = false;
 
   measure();
-  caret.style.height = LH + 'px';
+  shapeCaret();
   caret.classList.remove('bad');
   moveCaret(true);
 }
@@ -527,6 +591,8 @@ function measure(){
   });
   S.cw = code.clientWidth;
   S.hOver = code.scrollWidth > code.clientWidth + 1;
+  var probe = code.querySelector('.c');
+  if (probe) CW = probe.getBoundingClientRect().width || CW;
 }
 
 /* ---------- rendering per keystroke: one class write, one transform ---------- */
@@ -551,7 +617,8 @@ function reject(){
 function moveCaret(initial){
   var p = S.pos[S.i];
   if (!p) return;
-  caret.style.transform = 'translate(' + p.x + 'px,' + p.y + 'px)';
+  var y = prefs.caret === 'underline' ? p.y + LH - 2 : p.y;
+  caret.style.transform = 'translate(' + p.x + 'px,' + y + 'px)';
   if (!initial) alive();
   if (p.li !== S.li) {          // scroll only when the active line changes
     S.li = p.li;
@@ -713,90 +780,203 @@ function practice(){
 }
 
 /* ------------------------------------------------------------------ *
- * Switcher. Summoned with tab+s, gone again on enter or esc -- the typing
- * screen still shows only the code and one meta line, and nothing stands
- * between opening the page and the first keystroke.
+ * Settings. Summoned by the gear or tab+s; absent from the typing screen
+ * otherwise. Keyboard drives it and so does the mouse -- neither is
+ * required, which is the original rule, now true in both directions.
  * ------------------------------------------------------------------ */
-var swEl    = document.getElementById('switch');
-var swLang  = document.getElementById('swLang');
-var swTopic = document.getElementById('swTopic');
-var swTier  = document.getElementById('swTier');
-var swCount = document.getElementById('swCount');
-var SW_ROWS = ['lang', 'topic', 'tier'];
-var swOpen = false, swRow = 0, draft = null;
+var swEl     = document.getElementById('settings');
+var swRowsEl = document.getElementById('swRows');
+var swCount  = document.getElementById('swCount');
+var gearEl   = document.getElementById('gear');
+var swOpen = false, swRow = 0, draft = null, dirty = false;
 
-// Topics come from the corpus, so a shard added later shows up here for free.
-function swOptions(key){
-  if (key === 'lang') return ['', 'python', 'cpp'];
-  if (key === 'tier') return ['', '1', '2', '3', '4'];
-  var seen = {};
-  full.forEach(function(s){ if (!draft.lang || s.lang === draft.lang) seen[s.topic] = true; });
-  return [''].concat(Object.keys(seen).sort());
+// One row per adjustable thing. `filter` rows change which snippets are drawn
+// and so take effect on close; `live` rows apply the moment they change.
+var ROWS = [
+  { key: 'lang',  label: 'language', kind: 'filter',
+    opts: function(){ return ['', 'python', 'cpp']; },
+    fmt: function(v){ return v || 'all'; } },
+  { key: 'topic', label: 'topic', kind: 'filter',
+    opts: function(){
+      var seen = {};
+      full.forEach(function(x){ if (!draft.lang || x.lang === draft.lang) seen[x.topic] = true; });
+      return [''].concat(Object.keys(seen).sort());
+    },
+    fmt: function(v){ return v || 'all'; } },
+  { key: 'tier',  label: 'tier', kind: 'filter',
+    opts: function(){ return ['', '1', '2', '3', '4']; },
+    fmt: function(v){ return v ? 'tier ' + v : 'all'; } },
+  { key: 'theme', label: 'theme', kind: 'live',
+    opts: function(){ return THEMES.slice(); },
+    fmt: function(v){ return v; } },
+  { key: 'size',  label: 'font size', kind: 'live',
+    range: [SIZE_MIN, SIZE_MAX, 1],
+    fmt: function(v){ return v + 'px'; } },
+  { key: 'lh',    label: 'line height', kind: 'live',
+    range: [1.2, 2.6, 0.1],
+    fmt: function(v){ return v.toFixed(1); } },
+  { key: 'caret', label: 'caret', kind: 'live',
+    opts: function(){ return CARETS.slice(); },
+    fmt: function(v){ return v; } },
+  { key: 'typeIndent', label: 'indent', kind: 'render',
+    opts: function(){ return [false, true]; },
+    fmt: function(v){ return v ? 'typed' : 'supplied'; } }
+];
+
+function draftGet(r){ return r.kind === 'filter' ? draft[r.key] : prefs[r.key]; }
+function draftSet(r, v){ if (r.kind === 'filter') draft[r.key] = v; else prefs[r.key] = v; }
+
+function swBuild(){
+  swRowsEl.textContent = '';
+  ROWS.forEach(function(r, i){
+    var row = document.createElement('div');
+    row.className = 'row';
+    row.dataset.i = String(i);
+    var lbl = document.createElement('span');
+    lbl.className = 'lbl';
+    lbl.textContent = r.label;
+    var left = document.createElement('span');
+    left.className = 'arrow';
+    left.textContent = '‹';
+    left.dataset.step = '-1';
+    var val = document.createElement('span');
+    val.className = 'val';
+    var right = document.createElement('span');
+    right.className = 'arrow';
+    right.textContent = '›';
+    right.dataset.step = '1';
+    row.appendChild(lbl); row.appendChild(left); row.appendChild(val); row.appendChild(right);
+    swRowsEl.appendChild(row);
+  });
 }
 
 function swRender(){
-  var vals = { lang: swLang, topic: swTopic, tier: swTier };
-  SW_ROWS.forEach(function(key, i){
-    var v = draft[key];
-    vals[key].textContent = v === '' ? 'all' : (key === 'tier' ? 'tier ' + v : v);
-    vals[key].parentNode.className = 'row' + (i === swRow ? ' on' : '');
-  });
-  var n = full.filter(function(s){
-    return (!draft.lang  || s.lang  === draft.lang)
-        && (!draft.topic || s.topic === draft.topic)
-        && (!draft.tier  || String(s.tier) === String(draft.tier));
+  var rows = swRowsEl.children;
+  for (var i = 0; i < ROWS.length; i++) {
+    var r = ROWS[i];
+    rows[i].className = 'row' + (i === swRow ? ' on' : '');
+    rows[i].querySelector('.val').textContent = r.fmt(draftGet(r));
+  }
+  var n = full.filter(function(x){
+    return (!draft.lang  || x.lang  === draft.lang)
+        && (!draft.topic || x.topic === draft.topic)
+        && (!draft.tier  || String(x.tier) === String(draft.tier));
   }).length;
   swCount.textContent = n
-    ? n + (n === 1 ? ' snippet' : ' snippets')
-    : 'no match — apply would fall back to all ' + full.length;
+    ? n + (n === 1 ? ' snippet matches' : ' snippets match')
+    : 'no match — closing would fall back to all ' + full.length;
+}
+
+function swStep(i, delta){
+  swRow = i;
+  var r = ROWS[i];
+  if (r.range) {
+    var lo = r.range[0], hi = r.range[1], step = r.range[2];
+    var v = Math.round((draftGet(r) + delta * step) * 10) / 10;
+    v = Math.min(hi, Math.max(lo, v));
+    draftSet(r, v);
+  } else {
+    var opts = r.opts();
+    var at = opts.indexOf(draftGet(r));
+    if (at === -1) at = 0;
+    draftSet(r, opts[(at + delta + opts.length) % opts.length]);
+    // A topic absent from the newly chosen language matches nothing, so drop it.
+    if (r.key === 'lang' && draft.topic && ROWS[1].opts().indexOf(draft.topic) === -1) {
+      draft.topic = '';
+    }
+  }
+  if (r.kind === 'live') {
+    if (r.key === 'theme') applyTheme(); else applyMetrics();
+    savePrefs();
+  } else if (r.kind === 'render') {
+    savePrefs();
+    dirty = true;                 // needs the snippet rebuilt, so defer to close
+  } else {
+    dirty = true;
+  }
+  swRender();
 }
 
 function swShow(){
   draft = { lang: filter.lang, topic: filter.topic, tier: filter.tier };
+  dirty = false;
   swRow = 0;
   swOpen = true;
   appEl.hidden = true;
   resEl.hidden = true;
   swEl.hidden = false;
+  setFocus(false);
   swRender();
 }
 
-function swClose(apply){
+function swClose(){
   swOpen = false;
   swEl.hidden = true;
-  if (apply) {
-    filter = draft;
-    savePrefs();
-    load(pick());           // load() unhides the typing view itself
+  var changed = dirty || filter.lang !== draft.lang
+    || filter.topic !== draft.topic || filter.tier !== draft.tier;
+  filter = draft;
+  savePrefs();
+  if (changed) {
+    load(pick());               // load() unhides the typing view itself
   } else {
     appEl.hidden = false;
   }
 }
 
-function swStep(delta){
-  var key = SW_ROWS[swRow];
-  var opts = swOptions(key);
-  var i = opts.indexOf(draft[key]);
-  if (i === -1) i = 0;
-  draft[key] = opts[(i + delta + opts.length) % opts.length];
-  // A topic that does not exist in the newly chosen language would match zero
-  // snippets, so reset it rather than silently showing the fallback pool.
-  if (key === 'lang' && draft.topic && swOptions('topic').indexOf(draft.topic) === -1) {
-    draft.topic = '';
-  }
-  swRender();
-}
-
 function swKey(e){
   var k = e.key;
-  if (k === 'Escape')     { e.preventDefault(); swClose(false); return; }
-  if (k === 'Enter')      { e.preventDefault(); swClose(true);  return; }
-  if (k === 'ArrowUp')    { e.preventDefault(); swRow = (swRow + SW_ROWS.length - 1) % SW_ROWS.length; swRender(); return; }
-  if (k === 'ArrowDown' || k === 'Tab') { e.preventDefault(); swRow = (swRow + 1) % SW_ROWS.length; swRender(); return; }
-  if (k === 'ArrowLeft')  { e.preventDefault(); swStep(-1); return; }
-  if (k === 'ArrowRight') { e.preventDefault(); swStep(1);  return; }
+  if (k === 'Escape' || k === 'Enter') { e.preventDefault(); swClose(); return; }
+  if (k === 'ArrowUp')    { e.preventDefault(); swRow = (swRow + ROWS.length - 1) % ROWS.length; swRender(); return; }
+  if (k === 'ArrowDown' || k === 'Tab') { e.preventDefault(); swRow = (swRow + 1) % ROWS.length; swRender(); return; }
+  if (k === 'ArrowLeft')  { e.preventDefault(); swStep(swRow, -1); return; }
+  if (k === 'ArrowRight') { e.preventDefault(); swStep(swRow, 1);  return; }
+  if (k === 'e' || k === 'E') { e.preventDefault(); exportHistory(); return; }
   if (k.length === 1) e.preventDefault();   // swallow stray typing while open
 }
+
+/* ---------- mouse: optional everywhere, required nowhere ---------- */
+swRowsEl.addEventListener('click', function(ev){
+  var row = ev.target.closest ? ev.target.closest('.row') : null;
+  if (!row) return;
+  var i = Number(row.dataset.i);
+  var step = ev.target.dataset ? ev.target.dataset.step : null;
+  swStep(i, step ? Number(step) : 1);       // clicking the row itself advances
+});
+gearEl.addEventListener('click', function(){ if (!swOpen) swShow(); });
+
+var clearArmed = 0;
+document.getElementById('actExport').addEventListener('click', function(){ exportHistory(); });
+document.getElementById('actClear').addEventListener('click', function(ev){
+  // Destructive, so it takes two clicks and says so in between.
+  var el = ev.target;
+  if (Date.now() < clearArmed) {
+    sessions.length = 0;
+    persist();
+    clearArmed = 0;
+    el.textContent = 'history cleared';
+    setTimeout(function(){ el.textContent = 'clear history'; }, 1600);
+    return;
+  }
+  clearArmed = Date.now() + 3000;
+  el.textContent = 'click again to clear ' + sessions.length + ' sessions';
+  setTimeout(function(){
+    if (clearArmed) { clearArmed = 0; el.textContent = 'clear history'; }
+  }, 3000);
+});
+
+/* ---------- focus mode ---------- *
+ * Typing hides the gear; moving the mouse brings it back. Same convention as
+ * Monkeytype, and it keeps the typing screen to code plus one meta line.
+ */
+var focusMode = false;
+function setFocus(on){
+  if (focusMode === on) return;
+  focusMode = on;
+  document.body.classList.toggle('focus', on);
+}
+['mousemove', 'mousedown'].forEach(function(evt){
+  window.addEventListener(evt, function(){ if (!swOpen) setFocus(false); });
+});
 
 /* ---------- runtime look: instant, no UI, persisted ---------- */
 function cycleTheme(delta){
@@ -809,7 +989,7 @@ function stepSize(delta){
   var next = Math.min(SIZE_MAX, Math.max(SIZE_MIN, prefs.size + delta));
   if (next === prefs.size) return;
   prefs.size = next;
-  applySize();
+  applyMetrics();
   savePrefs();
 }
 
@@ -868,23 +1048,25 @@ window.addEventListener('keydown', function(e){
     else if (k === 'p' || k === 'P') { e.preventDefault(); practice(); }
     return;
   }
-  if (k === 'Backspace') { e.preventDefault(); backspace(); return; }
-  if (k.length === 1) { e.preventDefault(); typeChar(k); }
+  if (k === 'Backspace') { e.preventDefault(); setFocus(true); backspace(); return; }
+  if (k.length === 1) { e.preventDefault(); setFocus(true); typeChar(k); }
 }, { passive: false });
 
 /* ---------- geometry upkeep ---------- */
 var reT = 0;
 window.addEventListener('resize', function(){
   clearTimeout(reT);
-  reT = setTimeout(function(){ if (S) { measure(); caret.style.height = LH + 'px'; moveCaret(true); } }, 120);
+  reT = setTimeout(function(){ if (S) { measure(); shapeCaret(); moveCaret(true); } }, 120);
 });
 if (document.fonts && document.fonts.ready) {
-  document.fonts.ready.then(function(){ if (S) { measure(); caret.style.height = LH + 'px'; moveCaret(true); } });
+  document.fonts.ready.then(function(){ if (S) { measure(); shapeCaret(); moveCaret(true); } });
 }
 
 /* ---------- boot: a snippet is on screen before anything async runs ---------- */
 applyTheme();
 document.documentElement.style.setProperty('--size', prefs.size + 'px');
+document.documentElement.style.setProperty('--lh', String(prefs.lh));
+swBuild();
 load(pick());
 
 /* Optional local corpus. Skipped on file:// entirely — a blocked fetch there

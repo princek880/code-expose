@@ -27,10 +27,11 @@ Markdown files under `snippets/` into pages on every deploy.
 
 This is the part worth reading. It is not the same as typing prose.
 
-**Leading whitespace is never typed.** The engine supplies it. When you advance
-to a new line the caret lands on the first non-whitespace character. Indentation
-is rendered, dimmed, so the shape of the code stays visible, but it is not part
-of the typable character stream — it never reaches WPM, accuracy, errors, or the
+**Leading whitespace is never typed** (by default — see `indent` in
+[Settings](#settings) to opt in). The engine supplies it. When you advance to a
+new line the caret lands on the first non-whitespace character. Indentation is
+rendered, dimmed, so the shape of the code stays visible, but it is not part of
+the typable character stream — it never reaches WPM, accuracy, errors, or the
 keystroke log.
 
 **Two strictness rules, by character class:**
@@ -58,12 +59,13 @@ lines are stripped. Interior blank lines stay.
 
 ## Keys
 
-No action needs the mouse.
+Every action is reachable by keyboard alone. The mouse is supported for
+settings but never required.
 
 | Key | |
 |---|---|
 | `Tab` `Enter` | Next snippet (Monkeytype convention; Tab's focus behaviour is suppressed) |
-| `Tab` `s` | Open the switcher: language / topic / tier |
+| `Tab` `s` | Open settings (or click the ⚙ gear) |
 | `↑` `↓` | Font size, 12–34px, live |
 | `←` `→` | Cycle theme |
 | `Enter` | On the results panel: next snippet (see the guard below) |
@@ -71,30 +73,63 @@ No action needs the mouse.
 | `p` | On the results panel: practise just the lines you made errors on |
 | `e` | On the results panel: export history as JSON |
 
-### Switching language, topic and tier without reloading
+### Focus mode
 
-`Tab` `s` brings up a three-row switcher — language, topic, tier — seeded from
-whatever is currently active. `↑`/`↓` picks the row, `←`/`→` changes its value,
-`Enter` applies and loads a matching snippet, `Esc` cancels and drops you back
-into the snippet you were on. It shows a live count of how many snippets match,
-and the topic list is read from the corpus, so a topic added later appears
-without touching the code.
+While you type, the only thing on screen is the code and one `topic · tier`
+line — the settings gear fades out. **Move the mouse and it comes back**; start
+typing and it disappears again. Same convention as Monkeytype.
 
-The typing screen itself is unchanged: still just the code and one `topic · tier`
-line. The switcher only exists while you hold it open, and nothing stands between
-loading the page and your first keystroke.
+The gear stays clickable while faded rather than being made inert, because a
+cursor already resting over it would otherwise never be able to reach it —
+nothing would move to bring it back.
 
-### Look
+### Settings
 
-`↑`/`↓` change font size and `←`/`→` cycle theme, both live and mid-snippet —
-no menu, because the effect is its own feedback. Five themes ship: `dark`
-(default), `light`, `amber`, `nord`, `contrast`. A size change re-measures the
-caret lookup table, so the caret stays exactly on the active character.
+Open with the **⚙ gear** or `Tab` `s`. Everything is adjustable both ways: the
+rows respond to `↑`/`↓` and `←`/`→`, and to clicking the `‹` `›` arrows or the
+row itself. Nothing here needs the mouse, and nothing here needs the keyboard.
 
-Theme, size, and the language/topic/tier filter all persist in `localStorage`,
-so the app reopens exactly as you left it. Precedence is **URL param > stored
-preference > default**: a link like `?lang=cpp&topic=cuda` always wins, so
-bookmarked drills behave the same no matter what you last had selected.
+| Row | Values |
+|---|---|
+| language | all · python · cpp |
+| topic | all, plus every topic in the loaded corpus |
+| tier | all · 1 · 2 · 3 · 4 |
+| theme | dark · light · amber · nord · contrast |
+| font size | 12–34px |
+| line height | 1.2–2.6 |
+| caret | line · block · underline |
+| indent | supplied · typed |
+| | export history · clear history |
+
+A live count shows how many snippets match the current filter. Look settings
+(theme, size, line height, caret) apply the instant you change them; filter and
+indent changes need the snippet rebuilt, so they land when you close. Closing
+without changing anything leaves your in-progress snippet exactly as it was.
+
+`clear history` takes two clicks and tells you how many sessions it is about to
+delete in between. The topic list is read from the corpus, so a topic added
+later appears with no code change.
+
+### indent: supplied vs typed
+
+The default is the model described above — the engine supplies indentation and
+it never counts. Set it to **typed** and leading whitespace joins the typable
+stream: you type every space, and they count toward WPM, accuracy and the
+keystroke log like any other character. Mistyped indent spaces get the same
+background tint as any other wrong space.
+
+There is deliberately **no indent-width setting**. No snippet in the corpus
+contains a literal tab, so a tab-width option would do nothing; and rescaling
+existing indentation would corrupt the 21 snippets that use continuation
+alignment (lining up under an open paren) rather than plain block indents.
+
+### Persistence
+
+Theme, size, line height, caret, indent mode, and the language/topic/tier filter
+all persist in `localStorage` under `ctype.prefs`, so the app reopens exactly as
+you left it. Precedence is **URL param > stored preference > default**: a link
+like `?lang=cpp&topic=cuda` always wins, so bookmarked drills behave the same no
+matter what you last had selected.
 
 ### The results panel does not vanish on an accidental Enter
 
@@ -127,7 +162,7 @@ All optional, all combinable:
 
 ```
 index.html?lang=cpp
-index.html?lang=python&topic=decorators
+index.html?lang=python&topic=core-syntax
 index.html?lang=cpp&topic=templates-meta&tier=3
 ```
 
@@ -287,7 +322,9 @@ No accounts, leaderboards, syntax highlighting, sound, daily snippet mode,
 recall mode, weak-spot dashboard, history charts, CLI, multiplayer,
 achievements, compiler, or execution.
 
-Theme switching and a settings screen were on this list originally. They are
-in now, but only on the terms the list was protecting: summoned by keystroke,
-absent from the typing screen, and never in the way of the first keystroke.
-There is still no gear icon and no click path anywhere in the app.
+Theme switching and a settings screen were on this list originally, along with
+"no mouse interaction required". All three have moved, but the constraint they
+were protecting has not: the typing screen is still the code plus one line, the
+gear fades out the moment you type, and nothing stands between opening the page
+and the first keystroke. The mouse is now fully supported and still never
+*required* — every setting is reachable by keyboard alone.
