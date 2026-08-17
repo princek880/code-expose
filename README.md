@@ -88,7 +88,31 @@ index.html?lang=cpp&topic=templates-meta&tier=3
 
 `lang` is `python` or `cpp`. An empty result falls back to the full pool rather
 than showing a blank screen, so a nonsense filter still gives you something to
-type.
+type. Combine `topic` from the table below with `tier` (`1`–`4`, easiest to
+hardest) to drill exactly what you want.
+
+## Topics
+
+```
+index.html?lang=python&topic=dsa
+index.html?lang=cpp&topic=templates-meta&tier=4
+```
+
+| Python `topic=` | snippets | | C++ `topic=` | snippets |
+|---|---|---|---|---|
+| `core-syntax` | 70 | | `core-syntax` | 28 |
+| `dsa` | 92 | | `dsa` | 25 |
+| `numerical` | 47 | | `stl` | 28 |
+| `ml` | 35 | | `templates-meta` | 26 |
+| `data` | 33 | | `low-latency` | 21 |
+| `functional-meta` | 21 | | `cuda` | 15 |
+| `concurrency` | 8 | | `concurrency` | 8 |
+| `nways` | 25 | | `nways` | 18 |
+
+`nways` is the odd one out: instead of one topic, it's the same handful of
+problems (fibonacci, dedup, parallel sum, matrix multiply, singleton...) each
+solved several different ways, meant to be typed back to back with
+`Tab`→`Enter` so the contrast sticks.
 
 ## Snippets
 
@@ -96,13 +120,13 @@ Ten snippets are embedded in `index.html` itself, so the engine is fully
 usable with no corpus on disk: 5 Python, 5 C++, tiers 1–4, with heavy
 coverage of `{}`, `<>`, `::`, `->`, `**kwargs`, and `[&]`.
 
-The real corpus lives in `snippets/` — 480 snippets (319 Python, 161 C++)
-across 16 topics per [`CONTENT.md`](CONTENT.md), which also documents how
-every one of them was verified (executed, differentially tested against
-brute force, compiled and run under ASan/UBSan, or — for the CUDA track,
-where no compiler is available here — typed end-to-end through the real
-engine). `dist/` is the built, committed output; regenerate it after editing
-`snippets/` with:
+The real corpus lives in `snippets/` — 500 snippets (331 Python, 169 C++)
+across the 16 topics above, detailed in [`CONTENT.md`](CONTENT.md), which
+also documents how every one of them was verified (executed, differentially
+tested against brute force, compiled and run under ASan/UBSan, or — for the
+CUDA track, where no compiler is available here — typed end-to-end through
+the real engine). `dist/` is the built, committed output; regenerate it
+after editing `snippets/` with:
 
 ```
 node tools/build.mjs            # validates every snippet, writes dist/
