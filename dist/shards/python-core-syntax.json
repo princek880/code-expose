@@ -1,0 +1,862 @@
+[
+ {
+  "id": "python/core-syntax/argparse-skeleton",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "argparse",
+   "cli"
+  ],
+  "code": "import argparse\n\ndef build_parser():\n    p = argparse.ArgumentParser(prog=\"ctype\", description=\"drill code\")\n    p.add_argument(\"path\", type=str)\n    p.add_argument(\"-n\", \"--count\", type=int, default=10)\n    p.add_argument(\"--tier\", choices=(\"1\", \"2\", \"3\", \"4\"), action=\"append\")\n    p.add_argument(\"-v\", \"--verbose\", action=\"store_true\")\n    return p\n\nif __name__ == \"__main__\":\n    args = build_parser().parse_args([\"x.md\", \"-n\", \"3\", \"--tier\", \"2\", \"-v\"])\n    print(args.path, args.count, args.tier, args.verbose)",
+  "note": "Keep parser construction in its own function so tests can build it without sys.argv."
+ },
+ {
+  "id": "python/core-syntax/collections-counter",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 1,
+  "tags": [
+   "collections",
+   "counter"
+  ],
+  "code": "from collections import Counter\n\nc = Counter(\"mississippi\")\nprint(c.most_common(2), c[\"z\"], sum(c.values()))\nprint(c - Counter(\"issi\"), (c & Counter(\"pip\")))\nwords = Counter([\"a\", \"b\", \"a\", \"c\", \"a\"])\nwords.update([\"b\", \"d\"])\nprint(words.total(), sorted(words.elements())[:4])",
+  "note": "Counter arithmetic drops zero and negative counts, which is usually what you want."
+ },
+ {
+  "id": "python/core-syntax/collections-defaultdict",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 1,
+  "tags": [
+   "collections",
+   "defaultdict"
+  ],
+  "code": "from collections import defaultdict\n\npairs = [(\"a\", 1), (\"b\", 2), (\"a\", 3), (\"c\", 4), (\"b\", 5)]\ngroups = defaultdict(list)\nfor k, v in pairs:\n    groups[k].append(v)\n\ntotals = defaultdict(int)\nfor k, v in pairs:\n    totals[k] += v\n\nnested = defaultdict(lambda: defaultdict(set))\nnested[\"x\"][\"y\"].add(1)\nprint(dict(groups), dict(totals), nested[\"x\"][\"y\"])",
+  "note": "The factory is called with no arguments, which is why you pass list, not []."
+ },
+ {
+  "id": "python/core-syntax/collections-deque",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "collections",
+   "deque"
+  ],
+  "code": "from collections import deque\n\nd = deque([1, 2, 3], maxlen=4)\nd.append(4); d.append(5)\nd.appendleft(0)\nprint(d, d[0], d[-1])\nd.rotate(2)\nprint(d)\nd.extendleft([9, 8])\nprint(list(d), len(d))",
+  "note": "A bounded deque discards from the far end on push, which makes it a sliding window."
+ },
+ {
+  "id": "python/core-syntax/collections-namedtuple-chainmap",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "collections",
+   "namedtuple",
+   "chainmap"
+  ],
+  "code": "from collections import namedtuple, ChainMap\n\nRow = namedtuple(\"Row\", \"name qty price\", defaults=(0, 0.0))\nr = Row(\"bolt\", 12, 0.25)\nprint(r.name, r._replace(qty=20), r._asdict()[\"price\"], *Row(\"nut\"))\n\ndefaults = {\"debug\": False, \"level\": 1}\nenv = {\"level\": 3}\ncfg = ChainMap({}, env, defaults)\ncfg[\"debug\"] = True\nprint(cfg[\"level\"], cfg[\"debug\"], len(cfg.maps))",
+  "note": "ChainMap searches its maps left to right and writes only to the first."
+ },
+ {
+  "id": "python/core-syntax/comprehension-dict-set",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 1,
+  "tags": [
+   "comprehension",
+   "dict",
+   "set"
+  ],
+  "code": "words = [\"alpha\", \"beta\", \"gamma\", \"beta\"]\nlengths = {w: len(w) for w in words}\ninitials = {w[0] for w in words}\ninverted = {v: k for k, v in lengths.items()}\nby_len = {n: [w for w in words if len(w) == n] for n in set(lengths.values())}",
+  "note": "Same brackets as a dict or set literal, so the type is decided by the punctuation."
+ },
+ {
+  "id": "python/core-syntax/comprehension-generator-expr",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "generator",
+   "lazy"
+  ],
+  "code": "lines = [\"12\", \"x\", \"30\", \"\", \"7\"]\ntotal = sum(int(s) for s in lines if s.isdigit())\nfirst_big = next((int(s) for s in lines if s.isdigit() and int(s) > 20), None)\nany_blank = any(not s.strip() for s in lines)\nall_short = all(len(s) <= 2 for s in lines)\nprint(total, first_big, any_blank, all_short)",
+  "note": "A bare generator expression needs no brackets when it is the only argument."
+ },
+ {
+  "id": "python/core-syntax/comprehension-list-filter",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 1,
+  "tags": [
+   "comprehension",
+   "filter"
+  ],
+  "code": "nums = [3, -1, 4, -1, 5, -9, 2, 6]\nsquares = [n * n for n in nums if n > 0]\nlabels = [\"+\" if n > 0 else \"-\" for n in nums]\npaired = [(i, n) for i, n in enumerate(nums) if i % 2 == 0]\nprint(squares, labels[:3], paired[:2])",
+  "note": "The filter runs before the expression, so guard first and transform second."
+ },
+ {
+  "id": "python/core-syntax/comprehension-nested",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "comprehension",
+   "nested"
+  ],
+  "code": "matrix = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]\nflat = [x for row in matrix for x in row]\ntransposed = [[row[i] for row in matrix] for i in range(len(matrix[0]))]\nupper = [x for i, row in enumerate(matrix) for x in row[i + 1:]]\ngrid = {(r, c): matrix[r][c] for r in range(3) for c in range(3) if r != c}",
+  "note": "Nested clauses read left to right, in the same order as the for statements they replace."
+ },
+ {
+  "id": "python/core-syntax/comprehension-nested-conditional",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "comprehension",
+   "ternary"
+  ],
+  "code": "scores = {\"a\": 91, \"b\": 47, \"c\": 78, \"d\": 12}\ngraded = {k: (\"pass\" if v >= 60 else \"fail\") for k, v in scores.items()}\nclamped = [min(max(v, 20), 90) for v in scores.values()]\nsparse = {k: v for k, v in scores.items() if v >= 60}\nbuckets = [[k for k, v in scores.items() if v // 25 == b] for b in range(4)]",
+  "note": "A ternary sits in the value slot; a filter sits after the for. They are different tools."
+ },
+ {
+  "id": "python/core-syntax/dataclass-default-factory",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "dataclass",
+   "field"
+  ],
+  "code": "from dataclasses import dataclass, field\n\n@dataclass\nclass Job:\n    name: str\n    args: list[str] = field(default_factory=list)\n    env: dict[str, str] = field(default_factory=dict)\n    retries: int = 3\n    _token: str = field(default=\"\", repr=False, compare=False)\n\na, b = Job(\"build\"), Job(\"build\")\na.args.append(\"-j8\")\nprint(a, b.args, a == b)",
+  "note": "Mutable defaults need default_factory; a bare [] is a hard error at class creation."
+ },
+ {
+  "id": "python/core-syntax/dataclass-frozen-ordered",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "dataclass",
+   "frozen"
+  ],
+  "code": "from dataclasses import dataclass, replace\n\n@dataclass(frozen=True, order=True, slots=True)\nclass Point:\n    x: int\n    y: int\n\np = Point(1, 2)\nq = replace(p, y=9)\nprint(sorted([q, p]), {p: \"origin-ish\"}[Point(1, 2)])",
+  "note": "frozen=True gives you __hash__ and makes the instance usable as a dict key."
+ },
+ {
+  "id": "python/core-syntax/dataclass-post-init",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 3,
+  "tags": [
+   "dataclass",
+   "post-init"
+  ],
+  "code": "from dataclasses import dataclass, field, InitVar\n\n@dataclass\nclass Box:\n    width: float\n    height: float\n    scale: InitVar[float] = 1.0\n    area: float = field(init=False)\n\n    def __post_init__(self, scale):\n        self.width *= scale\n        self.height *= scale\n        self.area = self.width * self.height\n\nprint(Box(2, 3), Box(2, 3, scale=2).area)",
+  "note": "InitVar fields reach __post_init__ but are never stored on the instance."
+ },
+ {
+  "id": "python/core-syntax/decorator-class",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 3,
+  "tags": [
+   "decorator",
+   "class",
+   "call"
+  ],
+  "code": "class Counted:\n    def __init__(self, fn):\n        self.fn = fn\n        self.calls = 0\n\n    def __call__(self, *args, **kwargs):\n        self.calls += 1\n        return self.fn(*args, **kwargs)\n\n@Counted\ndef ping(x):\n    return x * 2\n\nping(1); ping(2); ping(3)\nprint(ping.calls)",
+  "note": "A class decorator holds state on self, so no closure cell juggling."
+ },
+ {
+  "id": "python/core-syntax/decorator-plain",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "decorator",
+   "closure"
+  ],
+  "code": "def logged(fn):\n    def inner(*args, **kwargs):\n        print(f\"-> {fn.__name__}{args}\")\n        result = fn(*args, **kwargs)\n        print(f\"<- {result!r}\")\n        return result\n    return inner\n\n@logged\ndef add(a, b):\n    return a + b\n\nadd(2, 3)",
+  "note": "A decorator is just a function that takes a function and returns a replacement."
+ },
+ {
+  "id": "python/core-syntax/decorator-registry",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 3,
+  "tags": [
+   "decorator",
+   "registry"
+  ],
+  "code": "HANDLERS = {}\n\ndef handles(*kinds):\n    def deco(fn):\n        for k in kinds:\n            HANDLERS[k] = fn\n        return fn\n    return deco\n\n@handles(\"click\", \"tap\")\ndef on_click(ev):\n    return (\"click\", ev.get(\"x\", 0), ev.get(\"y\", 0))\n\nprint(sorted(HANDLERS), HANDLERS[\"tap\"]({\"x\": 1}))",
+  "note": "Returning the function unchanged makes a decorator a pure registration hook."
+ },
+ {
+  "id": "python/core-syntax/decorator-stacked",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 3,
+  "tags": [
+   "decorator",
+   "order"
+  ],
+  "code": "def bold(fn):\n    return lambda *a: f\"<b>{fn(*a)}</b>\"\n\ndef italic(fn):\n    return lambda *a: f\"<i>{fn(*a)}</i>\"\n\n@bold\n@italic\ndef shout(s):\n    return s.upper()\n\nprint(shout(\"hi\"))",
+  "note": "Stacked decorators apply bottom-up, so the closest one wraps the function first."
+ },
+ {
+  "id": "python/core-syntax/decorator-with-args",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 3,
+  "tags": [
+   "decorator",
+   "factory"
+  ],
+  "code": "def retry(times=3, on=(ValueError,)):\n    def deco(fn):\n        def inner(*args, **kwargs):\n            for attempt in range(1, times + 1):\n                try:\n                    return fn(*args, **kwargs)\n                except on:\n                    if attempt == times:\n                        raise\n        return inner\n    return deco\n\n@retry(times=2, on=(ValueError, KeyError))\ndef flaky(d):\n    return d[\"k\"]",
+  "note": "A decorator that takes arguments needs a third layer: args, function, call."
+ },
+ {
+  "id": "python/core-syntax/decorator-wraps",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "decorator",
+   "functools"
+  ],
+  "code": "from functools import wraps\n\ndef once(fn):\n    @wraps(fn)\n    def inner(*args, **kwargs):\n        if not inner.done:\n            inner.value = fn(*args, **kwargs)\n            inner.done = True\n        return inner.value\n    inner.done = False\n    return inner\n\n@once\ndef setup():\n    \"\"\"Build the thing exactly once.\"\"\"\n    return {\"ready\": True}\n\nprint(setup.__name__, setup.__doc__[:5], setup() is setup())",
+  "note": "Without wraps the wrapper steals __name__, __doc__ and the signature metadata."
+ },
+ {
+  "id": "python/core-syntax/dunder-arithmetic",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 3,
+  "tags": [
+   "dunder",
+   "operator"
+  ],
+  "code": "class Vec:\n    __slots__ = (\"x\", \"y\")\n\n    def __init__(self, x, y):\n        self.x, self.y = x, y\n\n    def __add__(self, o):\n        if not isinstance(o, Vec):\n            return NotImplemented\n        return Vec(self.x + o.x, self.y + o.y)\n\n    def __mul__(self, k):\n        return Vec(self.x * k, self.y * k)\n\n    __rmul__ = __mul__\n\n    def __neg__(self):\n        return self * -1\n\n    def __abs__(self):\n        return (self.x ** 2 + self.y ** 2) ** 0.5\n\nv = 3 * Vec(1, 2) + -Vec(0, 1)\nprint(v.x, v.y, abs(Vec(3, 4)))",
+  "note": "Return NotImplemented for unknown operands so Python can try the reflected method."
+ },
+ {
+  "id": "python/core-syntax/dunder-enter-exit-call",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 3,
+  "tags": [
+   "dunder",
+   "context-manager"
+  ],
+  "code": "class Tally:\n    def __init__(self):\n        self.n = 0\n\n    def __enter__(self):\n        return self\n\n    def __exit__(self, exc_type, exc, tb):\n        self.closed = True\n        return exc_type is ZeroDivisionError\n\n    def __call__(self, k=1):\n        self.n += k\n        return self.n\n\nwith Tally() as t:\n    t(); t(5)\n    1 / 0\nprint(t.n, t.closed)",
+  "note": "Returning True from __exit__ swallows the exception; returning None re-raises it."
+ },
+ {
+  "id": "python/core-syntax/dunder-getitem-contains",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 3,
+  "tags": [
+   "dunder",
+   "sequence"
+  ],
+  "code": "class Ring:\n    def __init__(self, items):\n        self.items = list(items)\n\n    def __getitem__(self, i):\n        if isinstance(i, slice):\n            return [self[k] for k in range(*i.indices(len(self.items)))]\n        return self.items[i % len(self.items)]\n\n    def __contains__(self, x):\n        return x in self.items\n\n    def __len__(self):\n        return len(self.items)\n\nr = Ring(\"abc\")\nprint(r[4], r[-1], r[0:5], \"b\" in r)",
+  "note": "__getitem__ alone already makes a type iterable, via the legacy integer protocol."
+ },
+ {
+  "id": "python/core-syntax/dunder-iter-next-len",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "dunder",
+   "iterator"
+  ],
+  "code": "class Countdown:\n    def __init__(self, n):\n        self.n = n\n\n    def __iter__(self):\n        return self\n\n    def __next__(self):\n        if self.n <= 0:\n            raise StopIteration\n        self.n -= 1\n        return self.n + 1\n\n    def __len__(self):\n        return max(self.n, 0)\n\nc = Countdown(4)\nprint(len(c), list(c), list(c))",
+  "note": "__iter__ returning self makes the object its own iterator, so it exhausts once."
+ },
+ {
+  "id": "python/core-syntax/dunder-ordering",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 3,
+  "tags": [
+   "dunder",
+   "ordering",
+   "total-ordering"
+  ],
+  "code": "from functools import total_ordering\n\n@total_ordering\nclass Card:\n    order = \"23456789TJQKA\"\n\n    def __init__(self, rank):\n        self.rank = rank\n\n    def __eq__(self, other):\n        return self.rank == other.rank\n\n    def __lt__(self, other):\n        return self.order.index(self.rank) < self.order.index(other.rank)\n\nhand = [Card(r) for r in \"K3A9\"]\nprint([c.rank for c in sorted(hand)], Card(\"A\") >= Card(\"K\"))",
+  "note": "total_ordering fills in the other three comparisons from __eq__ and __lt__."
+ },
+ {
+  "id": "python/core-syntax/dunder-repr-eq-hash",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "dunder",
+   "hash",
+   "eq"
+  ],
+  "code": "class Version:\n    def __init__(self, major, minor):\n        self.major, self.minor = major, minor\n\n    def __repr__(self):\n        return f\"Version({self.major}, {self.minor})\"\n\n    def __eq__(self, other):\n        return (self.major, self.minor) == (other.major, other.minor)\n\n    def __hash__(self):\n        return hash((self.major, self.minor))\n\nprint({Version(1, 0), Version(1, 0)}, Version(1, 2) == Version(1, 2))",
+  "note": "Define __hash__ whenever you define __eq__, or the type stops working in sets."
+ },
+ {
+  "id": "python/core-syntax/enumerate-zip",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 1,
+  "tags": [
+   "builtins",
+   "enumerate",
+   "zip"
+  ],
+  "code": "names, scores = [\"a\", \"b\", \"c\"], [90, 80]\nfor i, (n, s) in enumerate(zip(names, scores), start=1):\n    print(f\"{i}. {n}={s}\")\n\nprint(list(zip(*[(1, \"a\"), (2, \"b\")])))\nprint(dict(zip(names, scores)))\nprint([f\"{i}:{c}\" for i, c in enumerate(\"xyz\")])",
+  "note": "zip stops at the shortest input unless you pass strict=True and let it raise."
+ },
+ {
+  "id": "python/core-syntax/exception-chaining",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 3,
+  "tags": [
+   "exceptions",
+   "raise-from"
+  ],
+  "code": "class ConfigError(Exception):\n    pass\n\ndef load(raw):\n    try:\n        return int(raw[\"timeout\"])\n    except KeyError as exc:\n        raise ConfigError(\"timeout missing\") from exc\n    except ValueError:\n        raise ConfigError(\"timeout not an int\") from None\n\ntry:\n    load({})\nexcept ConfigError as e:\n    print(type(e.__cause__).__name__)",
+  "note": "raise ... from sets __cause__; a bare raise inside except sets __context__ instead."
+ },
+ {
+  "id": "python/core-syntax/exception-custom-class",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "exceptions",
+   "class"
+  ],
+  "code": "class RetryLimit(Exception):\n    def __init__(self, attempts, last):\n        super().__init__(f\"gave up after {attempts}\")\n        self.attempts = attempts\n        self.last = last\n\ntry:\n    raise RetryLimit(3, ValueError(\"boom\"))\nexcept RetryLimit as e:\n    print(e.attempts, repr(e.last), str(e))",
+  "note": "Carry structured fields on the exception; formatting is the handler's job."
+ },
+ {
+  "id": "python/core-syntax/exception-group",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 4,
+  "tags": [
+   "exceptions",
+   "except-star"
+  ],
+  "code": "def fan_out():\n    raise ExceptionGroup(\"partial\", [ValueError(\"v\"), KeyError(\"k\")])\n\ntry:\n    fan_out()\nexcept* ValueError as eg:\n    print(\"values:\", len(eg.exceptions))\nexcept* KeyError as eg:\n    print(\"keys:\", len(eg.exceptions))",
+  "note": "except* matches by type inside an ExceptionGroup and can run more than one branch."
+ },
+ {
+  "id": "python/core-syntax/fstring-align-precision",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "fstring",
+   "align"
+  ],
+  "code": "rows = [(\"alpha\", 1.5), (\"beta\", 22.125), (\"gamma\", 333.0)]\nfor name, val in rows:\n    print(f\"{name:.<10}{val:>9.3f}\")\nfor name, val in rows:\n    print(f\"|{name:^12}|{val:0>10.2f}|\")",
+  "note": "Fill character comes before the alignment flag, so \">\" and \"0>\" differ."
+ },
+ {
+  "id": "python/core-syntax/fstring-debug-equals",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "fstring",
+   "debug"
+  ],
+  "code": "width, height = 3, 4\narea = width * height\nprint(f\"{width=} {height=} {area=}\")\nprint(f\"{width * height=}\")\nprint(f\"{area / width=:.3f}\")\nprint(f\"{[width, height]=}\")",
+  "note": "The = suffix prints the expression source and its repr, which is why it beats print."
+ },
+ {
+  "id": "python/core-syntax/fstring-format-specs",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 1,
+  "tags": [
+   "fstring",
+   "format"
+  ],
+  "code": "n, pi, big = 42, 3.14159, 1234567\nprint(f\"{n:5d}|{n:<5d}|{n:^5d}|{n:05d}\")\nprint(f\"{pi:.2f} {pi:8.3f} {pi:+.1f} {pi:e}\")\nprint(f\"{big:,} {big:_} {n:#x} {n:#o} {n:#b}\")\nprint(f\"{0.8734:.1%} {n:>{n // 7}d}\")",
+  "note": "The spec after the colon is the same mini-language str.format has always used."
+ },
+ {
+  "id": "python/core-syntax/fstring-nested-quotes",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 3,
+  "tags": [
+   "fstring",
+   "quoting"
+  ],
+  "code": "d = {\"key\": \"value\", \"n\": 7}\nitems = [\"a\", \"b\"]\nprint(f\"{d['key']}-{d['n']:03d}\")\nprint(f\"{', '.join(items)}\")\nprint(f\"{ {k: v for k, v in d.items() if k != 'n'} }\")\nprint(f\"{'yes' if d['n'] > 5 else 'no'}\")",
+  "note": "Before 3.12 the inner quotes had to differ from the outer ones; nesting braces never did."
+ },
+ {
+  "id": "python/core-syntax/functools-lru-cache",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "functools",
+   "cache",
+   "memo"
+  ],
+  "code": "from functools import lru_cache, cache\n\n@lru_cache(maxsize=None)\ndef collatz(n):\n    if n == 1:\n        return 0\n    return 1 + collatz(3 * n + 1 if n % 2 else n // 2)\n\n@cache\ndef comb(n, k):\n    if k in (0, n):\n        return 1\n    return comb(n - 1, k - 1) + comb(n - 1, k)\n\nprint(collatz(27), comb(30, 15), comb.cache_info().hits > 0)",
+  "note": "lru_cache keys on the arguments, so every one of them must be hashable."
+ },
+ {
+  "id": "python/core-syntax/functools-partial-reduce",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "functools",
+   "partial",
+   "reduce"
+  ],
+  "code": "from functools import partial, reduce\nfrom operator import mul, itemgetter\n\npow2 = partial(pow, 2)\njoin = partial(str.join, \"-\")\nproduct = partial(reduce, mul)\n\nrows = [(\"b\", 2), (\"a\", 9), (\"c\", 5)]\nprint(pow2(10), join([\"x\", \"y\"]), product([1, 2, 3, 4]))\nprint(sorted(rows, key=itemgetter(1))[-1])",
+  "note": "partial freezes leading positional arguments; keywords can still be overridden."
+ },
+ {
+  "id": "python/core-syntax/functools-singledispatch",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 3,
+  "tags": [
+   "functools",
+   "dispatch"
+  ],
+  "code": "from functools import singledispatch\n\n@singledispatch\ndef size(obj):\n    raise TypeError(f\"no rule for {type(obj).__name__}\")\n\n@size.register\ndef _(obj: str) -> int:\n    return len(obj)\n\n@size.register(list)\n@size.register(tuple)\ndef _(obj) -> int:\n    return sum(size(x) for x in obj)\n\n@size.register\ndef _(obj: int) -> int:\n    return obj\n\nprint(size(\"abc\"), size([1, \"xy\", (3,)]))",
+  "note": "singledispatch picks the implementation from the first argument's runtime type."
+ },
+ {
+  "id": "python/core-syntax/generator-pipeline",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 3,
+  "tags": [
+   "generator",
+   "pipeline",
+   "lazy"
+  ],
+  "code": "def read(lines):\n    for line in lines:\n        yield line.strip()\n\ndef keep(rows, prefix):\n    for row in rows:\n        if row.startswith(prefix):\n            yield row\n\ndef parse(rows):\n    for row in rows:\n        yield int(row.split(\":\")[-1])\n\nraw = [\" a:1 \", \"b:2\", \" a:30\", \"a:4\"]\nprint(sum(parse(keep(read(raw), \"a\"))))",
+  "note": "Chained generators stream: nothing is materialised between the stages."
+ },
+ {
+  "id": "python/core-syntax/generator-send",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 4,
+  "tags": [
+   "generator",
+   "coroutine",
+   "send"
+  ],
+  "code": "def accumulator(start=0):\n    total = start\n    while True:\n        received = yield total\n        if received is None:\n            break\n        total += received\n\ngen = accumulator(10)\nprint(next(gen))\nprint(gen.send(5), gen.send(7))\ngen.close()",
+  "note": "send resumes the generator and becomes the value of the yield expression."
+ },
+ {
+  "id": "python/core-syntax/generator-yield",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "generator",
+   "yield"
+  ],
+  "code": "def windows(xs, n):\n    buf = []\n    for x in xs:\n        buf.append(x)\n        if len(buf) == n:\n            yield tuple(buf)\n            buf.pop(0)\n\nprint(list(windows(range(6), 3)))\nprint(sum(max(w) for w in windows([4, 1, 9, 2, 8], 2)))",
+  "note": "A function with yield returns a generator; no body runs until the first next()."
+ },
+ {
+  "id": "python/core-syntax/generator-yield-from",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 3,
+  "tags": [
+   "generator",
+   "delegation"
+  ],
+  "code": "def flatten(node):\n    for item in node:\n        if isinstance(item, (list, tuple)):\n            yield from flatten(item)\n        else:\n            yield item\n\nnested = [1, [2, [3, [4, 5]], 6], (7, 8)]\nprint(list(flatten(nested)))\nprint(max(flatten(nested)) - min(flatten(nested)))",
+  "note": "yield from delegates iteration and forwards send/throw to the sub-generator."
+ },
+ {
+  "id": "python/core-syntax/itertools-accumulate-pairwise",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "itertools",
+   "accumulate",
+   "pairwise"
+  ],
+  "code": "from itertools import accumulate, pairwise, zip_longest, starmap\nfrom operator import mul\n\nxs = [3, 1, 4, 1, 5]\nprint(list(accumulate(xs)))\nprint(list(accumulate(xs, mul, initial=1)))\nprint(list(accumulate(xs, max)))\nprint([b - a for a, b in pairwise(xs)])\nprint(list(zip_longest(xs, \"ab\", fillvalue=\"_\")))\nprint(list(starmap(pow, [(2, 3), (3, 2)])))",
+  "note": "accumulate yields the running result including the first element, unlike reduce."
+ },
+ {
+  "id": "python/core-syntax/itertools-chain-islice",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "itertools",
+   "chain",
+   "islice"
+  ],
+  "code": "from itertools import chain, islice, tee, cycle\n\na, b = [1, 2, 3], (4, 5)\nprint(list(chain(a, b, \"xy\")))\nprint(list(chain.from_iterable([a, list(b)])))\nprint(list(islice(cycle(a), 7)))\nfirst, second = tee(iter(a))\nprint(next(first), list(second))",
+  "note": "islice consumes the source, so a half-read iterator stays half-read."
+ },
+ {
+  "id": "python/core-syntax/itertools-groupby",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 3,
+  "tags": [
+   "itertools",
+   "groupby"
+  ],
+  "code": "from itertools import groupby\nfrom operator import itemgetter\n\nrows = [(\"a\", 1), (\"b\", 2), (\"a\", 3), (\"b\", 4), (\"a\", 5)]\nrows.sort(key=itemgetter(0))\nfor key, grp in groupby(rows, key=itemgetter(0)):\n    vals = [v for _, v in grp]\n    print(key, vals, sum(vals))\n\nruns = [\"\".join(g) for _, g in groupby(\"aaabbbccd\")]\nprint(runs)",
+  "note": "groupby only groups adjacent equal keys, so sort by the same key first."
+ },
+ {
+  "id": "python/core-syntax/itertools-product-combinations",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "itertools",
+   "product",
+   "combinations"
+  ],
+  "code": "from itertools import product, combinations, permutations, combinations_with_replacement\n\nprint(list(product(\"ab\", [1, 2])))\nprint(list(product(\"01\", repeat=3))[:3])\nprint(list(combinations(\"abcd\", 2)))\nprint(list(permutations(\"abc\", 2))[:3])\nprint(list(combinations_with_replacement(\"ab\", 2)))",
+  "note": "product with repeat replaces nested loops of the same iterable."
+ },
+ {
+  "id": "python/core-syntax/match-as-nested",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 3,
+  "tags": [
+   "match",
+   "as-pattern"
+  ],
+  "code": "def summarize(event):\n    match event:\n        case {\"kind\": \"click\", \"at\": [x, y] as pos} if x > 0:\n            return f\"click{pos}\"\n        case {\"kind\": \"key\", \"code\": (int() | str()) as code}:\n            return f\"key:{code}\"\n        case [{\"kind\": k}, *_] as batch:\n            return f\"batch:{k}:{len(batch)}\"\n    return \"?\"\n\nprint(summarize({\"kind\": \"click\", \"at\": [3, 4]}), summarize({\"kind\": \"key\", \"code\": 27}))",
+  "note": "An as-pattern captures the whole matched value while still destructuring it."
+ },
+ {
+  "id": "python/core-syntax/match-class-pattern",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 3,
+  "tags": [
+   "match",
+   "class"
+  ],
+  "code": "from dataclasses import dataclass\n\n@dataclass\nclass Point:\n    x: int\n    y: int\n\ndef where(p):\n    match p:\n        case Point(0, 0):\n            return \"origin\"\n        case Point(x=0, y=y):\n            return f\"y-axis@{y}\"\n        case Point(x, y) if x == y:\n            return \"diagonal\"\n        case Point():\n            return \"plane\"\n\nprint(where(Point(0, 0)), where(Point(0, 5)), where(Point(2, 2)))",
+  "note": "Positional class patterns need __match_args__, which dataclasses supply for free."
+ },
+ {
+  "id": "python/core-syntax/match-literal-guard",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "match",
+   "guard"
+  ],
+  "code": "def classify(n):\n    match n:\n        case 0:\n            return \"zero\"\n        case x if x < 0:\n            return \"negative\"\n        case 1 | 2 | 3:\n            return \"small\"\n        case x if x % 2 == 0:\n            return \"even\"\n        case _:\n            return \"odd\"\n\nprint([classify(n) for n in (-2, 0, 2, 3, 9)])",
+  "note": "A guard runs only after the pattern matched, so it can use the captured names."
+ },
+ {
+  "id": "python/core-syntax/match-mapping",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 3,
+  "tags": [
+   "match",
+   "mapping"
+  ],
+  "code": "def handle(msg):\n    match msg:\n        case {\"type\": \"ping\"}:\n            return \"pong\"\n        case {\"type\": \"add\", \"args\": [a, b]}:\n            return a + b\n        case {\"type\": t, **rest} if rest:\n            return f\"{t}+{len(rest)}\"\n        case _:\n            return None\n\nprint(handle({\"type\": \"ping\", \"id\": 1}), handle({\"type\": \"add\", \"args\": [2, 3]}))",
+  "note": "Mapping patterns ignore extra keys, so **rest is how you catch the leftovers."
+ },
+ {
+  "id": "python/core-syntax/match-sequence",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 3,
+  "tags": [
+   "match",
+   "sequence"
+  ],
+  "code": "def route(parts):\n    match parts:\n        case []:\n            return \"root\"\n        case [\"users\", uid]:\n            return f\"user:{uid}\"\n        case [\"users\", uid, *rest] if rest:\n            return f\"user:{uid}/{'/'.join(rest)}\"\n        case [first, *_]:\n            return f\"top:{first}\"\n\nprint(route([]), route([\"users\", \"7\"]), route([\"users\", \"7\", \"posts\"]))",
+  "note": "A sequence pattern matches length and shape; *rest absorbs the middle."
+ },
+ {
+  "id": "python/core-syntax/pathlib-chain",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "pathlib",
+   "filesystem"
+  ],
+  "code": "from pathlib import Path\n\nroot = Path(\"data\") / \"raw\"\ntarget = (root / \"sample.tar.gz\").with_suffix(\"\").with_suffix(\".csv\")\nprint(target, target.stem, target.suffix, target.parent.name)\nprint(Path(\"/a/b/c.txt\").parts, Path(\"a/b\").joinpath(\"c\", \"d\"))\nsizes = {p.name: p.stat().st_size for p in Path(\".\").glob(\"*.md\") if p.is_file()}",
+  "note": "The / operator builds paths; with_suffix and stem avoid all string surgery."
+ },
+ {
+  "id": "python/core-syntax/slice-assignment",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "slice",
+   "mutation"
+  ],
+  "code": "xs = list(range(8))\nxs[2:4] = [20, 30, 40]\nxs[::2] = [0] * len(xs[::2])\nxs[-2:] = []\ndel xs[1:3]\nprint(xs, len(xs))",
+  "note": "Slice assignment can change the list length; extended-step assignment cannot."
+ },
+ {
+  "id": "python/core-syntax/slice-copy-and-view",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "slice",
+   "copy"
+  ],
+  "code": "grid = [[1, 2], [3, 4]]\nshallow = grid[:]\nshallow[0][0] = 99\ndeep = [row[:] for row in grid]\ndeep[1][1] = -1\nprint(grid, shallow, deep)",
+  "note": "[:] copies the outer list only, so nested lists stay shared."
+ },
+ {
+  "id": "python/core-syntax/slice-reverse",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 1,
+  "tags": [
+   "slice",
+   "reverse"
+  ],
+  "code": "s = \"was it a car or a cat i saw\"\nprint(s[::-1])\nprint(\" \".join(w[::-1] for w in s.split()))\nprint(s.replace(\" \", \"\")[::-1] == s.replace(\" \", \"\"))\nprint(list(reversed(s.split()))[:3])",
+  "note": "[::-1] copies; reversed() is a lazy iterator over the original."
+ },
+ {
+  "id": "python/core-syntax/slice-step-negative",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 1,
+  "tags": [
+   "slice",
+   "step"
+  ],
+  "code": "xs = list(range(10))\nprint(xs[2:7], xs[:3], xs[7:])\nprint(xs[::2], xs[1::3], xs[::-2])\nprint(xs[-3:], xs[:-3], xs[-7:-2])\nprint(xs[100:], xs[3:3], xs[5:2])",
+  "note": "A slice never raises for out-of-range bounds; it clamps."
+ },
+ {
+  "id": "python/core-syntax/sorted-key-multi",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "builtins",
+   "sorted",
+   "key"
+  ],
+  "code": "rows = [(\"bolt\", 3, 0.25), (\"nut\", 3, 0.10), (\"cam\", 1, 5.00)]\nprint(sorted(rows, key=lambda r: (-r[1], r[0])))\nprint(sorted(rows, key=lambda r: r[2], reverse=True)[0])\nprint(max(rows, key=lambda r: r[1] * r[2]))\nprint(min(rows, key=lambda r: len(r[0])))\nprint(sorted(\"Hello World\".split(), key=str.lower))",
+  "note": "Negate a numeric field to sort it descending while the rest stays ascending."
+ },
+ {
+  "id": "python/core-syntax/try-else-finally",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "exceptions",
+   "control-flow"
+  ],
+  "code": "def parse_port(raw):\n    try:\n        port = int(raw)\n    except (TypeError, ValueError):\n        return None\n    else:\n        return port if 0 < port < 65536 else None\n    finally:\n        pass\n\nprint(parse_port(\"8080\"), parse_port(\"x\"), parse_port(\"99999\"))",
+  "note": "else runs only when no exception fired, which keeps the try body minimal."
+ },
+ {
+  "id": "python/core-syntax/typing-callable-typevar",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 3,
+  "tags": [
+   "typing",
+   "typevar",
+   "callable"
+  ],
+  "code": "from collections.abc import Callable, Iterable\nfrom typing import TypeVar\n\nT = TypeVar(\"T\")\nU = TypeVar(\"U\")\n\ndef apply_all(fn: Callable[[T], U], xs: Iterable[T]) -> list[U]:\n    return [fn(x) for x in xs]\n\ndef first_where(xs: Iterable[T], pred: Callable[[T], bool]) -> T | None:\n    return next((x for x in xs if pred(x)), None)\n\nprint(apply_all(str, [1, 2]), first_where([1, 4, 9], lambda n: n > 3))",
+  "note": "A TypeVar ties input and output together, which a bare object annotation cannot."
+ },
+ {
+  "id": "python/core-syntax/typing-generic-class",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 3,
+  "tags": [
+   "typing",
+   "generic"
+  ],
+  "code": "from typing import Generic, TypeVar\n\nT = TypeVar(\"T\")\n\nclass Stack(Generic[T]):\n    def __init__(self) -> None:\n        self._items: list[T] = []\n\n    def push(self, item: T) -> None:\n        self._items.append(item)\n\n    def pop(self) -> T:\n        return self._items.pop()\n\n    def peek(self) -> T | None:\n        return self._items[-1] if self._items else None\n\ns: Stack[int] = Stack()\ns.push(1); s.push(2)\nprint(s.pop(), s.peek())",
+  "note": "Generic[T] parameterises the class so the element type survives into the methods."
+ },
+ {
+  "id": "python/core-syntax/typing-literal-typeddict",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 3,
+  "tags": [
+   "typing",
+   "literal",
+   "typeddict"
+  ],
+  "code": "from typing import Literal, NotRequired, TypedDict\n\nMode = Literal[\"r\", \"w\", \"a\"]\n\nclass Config(TypedDict):\n    path: str\n    mode: Mode\n    buffer: NotRequired[int]\n\ndef describe(c: Config) -> str:\n    return f\"{c['path']}:{c['mode']}:{c.get('buffer', -1)}\"\n\nprint(describe({\"path\": \"a.txt\", \"mode\": \"w\"}))",
+  "note": "TypedDict types the keys of a plain dict; Literal pins a value to a fixed set."
+ },
+ {
+  "id": "python/core-syntax/typing-optional-union",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "typing",
+   "optional",
+   "union"
+  ],
+  "code": "def head(xs: list[int]) -> int | None:\n    return xs[0] if xs else None\n\ndef label(x: int | str | None = None) -> str:\n    if x is None:\n        return \"none\"\n    return f\"int:{x}\" if isinstance(x, int) else f\"str:{x}\"\n\nRow = tuple[str, int, float | None]\nrows: list[Row] = [(\"a\", 1, 0.5), (\"b\", 2, None)]\nprint(head([]), label(3), label(\"x\"), rows[1][2])",
+  "note": "X | None is the modern spelling of Optional[X]; both mean the same thing."
+ },
+ {
+  "id": "python/core-syntax/typing-protocol",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 3,
+  "tags": [
+   "typing",
+   "protocol",
+   "structural"
+  ],
+  "code": "from typing import Protocol, runtime_checkable\n\n@runtime_checkable\nclass Sized(Protocol):\n    def __len__(self) -> int: ...\n\nclass Closeable(Protocol):\n    def close(self) -> None: ...\n\ndef total_size(items: list[Sized]) -> int:\n    return sum(len(i) for i in items)\n\nprint(total_size([\"ab\", [1, 2, 3], {}]), isinstance(\"x\", Sized))",
+  "note": "A Protocol is structural: anything with the right methods matches, no inheritance."
+ },
+ {
+  "id": "python/core-syntax/unpack-args-kwargs",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "args",
+   "kwargs",
+   "unpacking"
+  ],
+  "code": "def render(template, *rows, sep=\"|\", **opts):\n    body = sep.join(str(r) for r in rows)\n    return template.format(body=body, **opts)\n\nargs = (\"a\", \"b\", \"c\")\nkw = {\"title\": \"t\", \"width\": 4}\nprint(render(\"{title}:{body}:{width}\", *args, sep=\",\", **kw))",
+  "note": "Bare * ends positional parameters; everything after it is keyword-only."
+ },
+ {
+  "id": "python/core-syntax/unpack-dict-merge",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 1,
+  "tags": [
+   "dict",
+   "merge",
+   "operator"
+  ],
+  "code": "base = {\"host\": \"localhost\", \"port\": 80, \"tls\": False}\noverride = {\"port\": 443, \"tls\": True}\nmerged = base | override\nstarred = {**base, **override, \"debug\": True}\nbase |= {\"retries\": 3}\nprint(merged[\"port\"], starred[\"debug\"], base[\"retries\"])",
+  "note": "The right operand wins on conflict, for both | and the ** form."
+ },
+ {
+  "id": "python/core-syntax/unpack-starred",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 1,
+  "tags": [
+   "unpacking",
+   "star"
+  ],
+  "code": "head, *rest = [1, 2, 3, 4, 5]\n*init, last = \"abcdef\"\nfirst, *middle, final = range(10)\n(a, b), (c, d) = (1, 2), (3, 4)\nmerged = [*init[:2], *middle[-2:], last]",
+  "note": "Exactly one starred target is allowed, and it always collects a list."
+ },
+ {
+  "id": "python/core-syntax/unpack-swap-rotate",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "unpacking",
+   "tuple"
+  ],
+  "code": "a, b, c = 1, 2, 3\na, b = b, a\na, b, c = c, a, b\nxs = [1, 2, 3, 4]\nxs[0], xs[-1] = xs[-1], xs[0]\n(x, y), z = (a, b), c\nprint(a, b, c, xs, x, y, z)",
+  "note": "The right side is fully evaluated into a tuple before any name is rebound."
+ },
+ {
+  "id": "python/core-syntax/walrus-comprehension",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 3,
+  "tags": [
+   "walrus",
+   "comprehension"
+  ],
+  "code": "words = [\"alpha\", \"be\", \"gamma\", \"hi\", \"delta\"]\nlens = [n for w in words if (n := len(w)) > 2]\nscaled = {w: sq for w in words if (sq := len(w) ** 2) > 9}\nfirst = next((m for w in words if (m := w.upper()).startswith(\"G\")), None)\nprint(lens, scaled, first)",
+  "note": "Inside a comprehension the walrus lets the filter and the value share one computation."
+ },
+ {
+  "id": "python/core-syntax/walrus-while",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "walrus",
+   "loop"
+  ],
+  "code": "import sys\n\nbuf = []\nwhile (line := sys.stdin.readline()) and (n := len(line.strip())):\n    buf.append((n, line.strip()))\n    if n > 80:\n        break\nprint(len(buf))",
+  "note": "The walrus assigns and yields in one expression, which collapses the read-then-test loop."
+ },
+ {
+  "id": "python/core-syntax/with-contextmanager",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 3,
+  "tags": [
+   "contextlib",
+   "generator"
+  ],
+  "code": "from contextlib import contextmanager\nimport time\n\n@contextmanager\ndef timed(label):\n    t0 = time.perf_counter()\n    try:\n        yield lambda: time.perf_counter() - t0\n    finally:\n        print(f\"{label}: {time.perf_counter() - t0:.4f}s\")\n\nwith timed(\"work\") as elapsed:\n    total = sum(i * i for i in range(1000))\n    print(f\"{elapsed():.6f}\")",
+  "note": "Everything before yield is __enter__; the finally block is __exit__."
+ },
+ {
+  "id": "python/core-syntax/with-multiple",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "context-manager",
+   "with"
+  ],
+  "code": "from pathlib import Path\n\nsrc, dst = Path(\"in.txt\"), Path(\"out.txt\")\nwith src.open() as fin, dst.open(\"w\") as fout:\n    for i, line in enumerate(fin, start=1):\n        fout.write(f\"{i:04d}: {line.rstrip()}\\n\")",
+  "note": "One with statement can hold several managers; they exit in reverse order."
+ },
+ {
+  "id": "python/core-syntax/with-suppress-closing",
+  "lang": "python",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "contextlib",
+   "suppress"
+  ],
+  "code": "from contextlib import suppress, closing, ExitStack\n\nwith suppress(FileNotFoundError, PermissionError):\n    open(\"/nope/missing.txt\").read()\n\nwith ExitStack() as stack:\n    files = [stack.enter_context(open(p)) for p in (\"a.txt\", \"b.txt\")]\n    sizes = [len(f.read()) for f in files]",
+  "note": "suppress swallows only the listed exceptions and only for the rest of the block."
+ }
+]

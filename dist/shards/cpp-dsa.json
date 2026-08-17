@@ -1,0 +1,322 @@
+[
+ {
+  "id": "cpp/dsa/backtracking-n-queens",
+  "lang": "cpp",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "backtracking",
+   "n-queens",
+   "unordered-set"
+  ],
+  "code": "#include <unordered_set>\n#include <vector>\n\nvoid place(int row, int n, std::vector<int>& cols_used, std::unordered_set<int>& diag,\n           std::unordered_set<int>& anti, int& count) {\n    if (row == n) {\n        ++count;\n        return;\n    }\n    for (int col = 0; col < n; ++col) {\n        bool used = false;\n        for (int c : cols_used) if (c == col) used = true;\n        if (used || diag.count(row - col) || anti.count(row + col)) continue;\n        cols_used.push_back(col);\n        diag.insert(row - col);\n        anti.insert(row + col);\n        place(row + 1, n, cols_used, diag, anti, count);\n        cols_used.pop_back();\n        diag.erase(row - col);\n        anti.erase(row + col);\n    }\n}\n\nint demo() {\n    std::vector<int> cols;\n    std::unordered_set<int> diag, anti;\n    int count = 0;\n    place(0, 6, cols, diag, anti, count);\n    return count;\n}",
+  "note": "row - col and row + col identify the two diagonals in O(1), same trick as Python, now via unordered_set."
+ },
+ {
+  "id": "cpp/dsa/backtracking-permutations",
+  "lang": "cpp",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "backtracking",
+   "permutations",
+   "swap"
+  ],
+  "code": "#include <vector>\n\nvoid go(std::vector<int>& xs, int k, std::vector<std::vector<int>>& out) {\n    if (k == static_cast<int>(xs.size())) {\n        out.push_back(xs);\n        return;\n    }\n    for (int i = k; i < static_cast<int>(xs.size()); ++i) {\n        std::swap(xs[static_cast<std::size_t>(k)], xs[static_cast<std::size_t>(i)]);\n        go(xs, k + 1, out);\n        std::swap(xs[static_cast<std::size_t>(k)], xs[static_cast<std::size_t>(i)]);\n    }\n}\n\nint demo() {\n    std::vector<int> xs{1, 2, 3};\n    std::vector<std::vector<int>> out;\n    go(xs, 0, out);\n    return static_cast<int>(out.size());\n}",
+  "note": "Swap-based permutation generation needs no visited array, mirroring the Python in-place version."
+ },
+ {
+  "id": "cpp/dsa/binary-search",
+  "lang": "cpp",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "binary-search",
+   "invariant"
+  ],
+  "code": "#include <vector>\n\nint search(const std::vector<int>& xs, int target) {\n    int lo = 0, hi = static_cast<int>(xs.size());\n    while (lo < hi) {\n        int mid = lo + (hi - lo) / 2;\n        if (xs[static_cast<std::size_t>(mid)] == target) return mid;\n        if (xs[static_cast<std::size_t>(mid)] < target) lo = mid + 1;\n        else hi = mid;\n    }\n    return -1;\n}\n\nint demo() {\n    std::vector<int> xs{1, 3, 5, 7, 9, 11};\n    return search(xs, 7) * 10 + search(xs, 8);\n}",
+  "note": "Half-open [lo, hi) with lo = mid + 1 is the C++ mirror of the same invariant as the Python version."
+ },
+ {
+  "id": "cpp/dsa/bisect-lower-upper-bound",
+  "lang": "cpp",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "binary-search",
+   "lower-bound",
+   "upper-bound"
+  ],
+  "code": "#include <algorithm>\n#include <vector>\n\nint demo() {\n    std::vector<int> xs{1, 2, 2, 2, 5};\n    auto lo = std::lower_bound(xs.begin(), xs.end(), 2);\n    auto hi = std::upper_bound(xs.begin(), xs.end(), 2);\n    bool present = std::binary_search(xs.begin(), xs.end(), 5);\n    return static_cast<int>(std::distance(lo, hi)) + static_cast<int>(present);\n}",
+  "note": "std::lower_bound and std::upper_bound are the C++ standard library's binary_search primitives."
+ },
+ {
+  "id": "cpp/dsa/bst-insert-search",
+  "lang": "cpp",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "bst",
+   "insert",
+   "search",
+   "unique-ptr"
+  ],
+  "code": "#include <memory>\n\nstruct Node {\n    int val{};\n    std::unique_ptr<Node> left, right;\n    explicit Node(int v) : val(v) {}\n};\n\nstd::unique_ptr<Node> insert(std::unique_ptr<Node> node, int key) {\n    if (!node) return std::make_unique<Node>(key);\n    if (key < node->val) node->left = insert(std::move(node->left), key);\n    else if (key > node->val) node->right = insert(std::move(node->right), key);\n    return node;\n}\n\nconst Node* search(const Node* node, int key) {\n    while (node && node->val != key) {\n        node = key < node->val ? node->left.get() : node->right.get();\n    }\n    return node;\n}\n\nint demo() {\n    std::unique_ptr<Node> root;\n    for (int k : {5, 3, 8, 1, 4}) root = insert(std::move(root), k);\n    const Node* found = search(root.get(), 4);\n    return found ? found->val : -1;\n}",
+  "note": "insert returns the (possibly new) subtree root, which is how the caller reattaches it in one line."
+ },
+ {
+  "id": "cpp/dsa/dp-coin-change",
+  "lang": "cpp",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "dp",
+   "coin-change"
+  ],
+  "code": "#include <algorithm>\n#include <climits>\n#include <vector>\n\nint fewest_coins(const std::vector<int>& coins, int amount) {\n    const int INF = amount + 1;\n    std::vector<int> dp(static_cast<std::size_t>(amount) + 1, INF);\n    dp[0] = 0;\n    for (int a = 1; a <= amount; ++a) {\n        for (int c : coins) {\n            if (c <= a) dp[static_cast<std::size_t>(a)] = std::min(dp[static_cast<std::size_t>(a)],\n                dp[static_cast<std::size_t>(a - c)] + 1);\n        }\n    }\n    return dp[static_cast<std::size_t>(amount)] <= amount ? dp[static_cast<std::size_t>(amount)] : -1;\n}\n\nint demo() { return fewest_coins({1, 5, 6, 9}, 11); }",
+  "note": "The same fewest-coins recurrence as Python, with an explicit sentinel instead of a Python float infinity."
+ },
+ {
+  "id": "cpp/dsa/dp-knapsack-01",
+  "lang": "cpp",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "dp",
+   "knapsack",
+   "0-1"
+  ],
+  "code": "#include <algorithm>\n#include <vector>\n\nint knapsack(const std::vector<int>& w, const std::vector<int>& v, int cap) {\n    std::vector<int> dp(static_cast<std::size_t>(cap) + 1, 0);\n    for (std::size_t i = 0; i < w.size(); ++i) {\n        for (int c = cap; c >= w[i]; --c) {\n            dp[static_cast<std::size_t>(c)] = std::max(dp[static_cast<std::size_t>(c)],\n                dp[static_cast<std::size_t>(c - w[i])] + v[i]);\n        }\n    }\n    return dp[static_cast<std::size_t>(cap)];\n}\n\nint demo() {\n    return knapsack({1, 3, 4, 5}, {1, 4, 5, 7}, 7);\n}",
+  "note": "Same downward-capacity trick as the Python version prevents an item being reused within one round."
+ },
+ {
+  "id": "cpp/dsa/dp-lcs",
+  "lang": "cpp",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "dp",
+   "lcs",
+   "2d"
+  ],
+  "code": "#include <algorithm>\n#include <string>\n#include <vector>\n\nint lcs_len(const std::string& a, const std::string& b) {\n    std::vector<std::vector<int>> dp(a.size() + 1, std::vector<int>(b.size() + 1, 0));\n    for (std::size_t i = 1; i <= a.size(); ++i) {\n        for (std::size_t j = 1; j <= b.size(); ++j) {\n            if (a[i - 1] == b[j - 1]) dp[i][j] = dp[i - 1][j - 1] + 1;\n            else dp[i][j] = std::max(dp[i - 1][j], dp[i][j - 1]);\n        }\n    }\n    return dp[a.size()][b.size()];\n}\n\nint demo() { return lcs_len(\"AGGTAB\", \"GXTXAYB\"); }",
+  "note": "The 2D table indexes a[i-1] and b[j-1] because row and column 0 represent the empty prefix."
+ },
+ {
+  "id": "cpp/dsa/graph-adjacency-vector",
+  "lang": "cpp",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "graph",
+   "adjacency",
+   "vector-of-vector"
+  ],
+  "code": "#include <vector>\n\nstd::vector<std::vector<int>> build(int n, const std::vector<std::pair<int, int>>& edges) {\n    std::vector<std::vector<int>> adj(static_cast<std::size_t>(n));\n    for (auto [u, v] : edges) {\n        adj[static_cast<std::size_t>(u)].push_back(v);\n        adj[static_cast<std::size_t>(v)].push_back(u);\n    }\n    return adj;\n}\n\nint demo() {\n    auto adj = build(5, {{0, 1}, {0, 2}, {1, 3}, {2, 3}, {3, 4}});\n    return static_cast<int>(adj[3].size()) * 10 + static_cast<int>(adj[0].size());\n}",
+  "note": "vector<vector<int>> adjacency is the idiomatic C++ graph, indexed by plain node id."
+ },
+ {
+  "id": "cpp/dsa/graph-bfs-shortest",
+  "lang": "cpp",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "graph",
+   "bfs",
+   "shortest-path"
+  ],
+  "code": "#include <queue>\n#include <vector>\n\nint shortest(const std::vector<std::vector<int>>& adj, int src, int dst) {\n    std::vector<int> dist(adj.size(), -1);\n    dist[static_cast<std::size_t>(src)] = 0;\n    std::queue<int> q;\n    q.push(src);\n    while (!q.empty()) {\n        int u = q.front();\n        q.pop();\n        if (u == dst) return dist[static_cast<std::size_t>(u)];\n        for (int v : adj[static_cast<std::size_t>(u)]) {\n            if (dist[static_cast<std::size_t>(v)] == -1) {\n                dist[static_cast<std::size_t>(v)] = dist[static_cast<std::size_t>(u)] + 1;\n                q.push(v);\n            }\n        }\n    }\n    return -1;\n}\n\nint demo() {\n    std::vector<std::vector<int>> adj{{1, 2}, {3}, {3}, {4}, {}};\n    return shortest(adj, 0, 4);\n}",
+  "note": "BFS over an unweighted adjacency list gives shortest paths, same guarantee as the Python version."
+ },
+ {
+  "id": "cpp/dsa/graph-dijkstra-priority-queue",
+  "lang": "cpp",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "graph",
+   "dijkstra",
+   "priority-queue"
+  ],
+  "code": "#include <functional>\n#include <limits>\n#include <queue>\n#include <utility>\n#include <vector>\n\nstd::vector<long long> dijkstra(const std::vector<std::vector<std::pair<int, int>>>& adj, int src) {\n    const long long INF = std::numeric_limits<long long>::max();\n    std::vector<long long> dist(adj.size(), INF);\n    dist[static_cast<std::size_t>(src)] = 0;\n    using P = std::pair<long long, int>;\n    std::priority_queue<P, std::vector<P>, std::greater<>> pq;\n    pq.push({0, src});\n    while (!pq.empty()) {\n        auto [d, u] = pq.top();\n        pq.pop();\n        if (d > dist[static_cast<std::size_t>(u)]) continue;\n        for (auto [v, w] : adj[static_cast<std::size_t>(u)]) {\n            long long nd = d + w;\n            if (nd < dist[static_cast<std::size_t>(v)]) {\n                dist[static_cast<std::size_t>(v)] = nd;\n                pq.push({nd, v});\n            }\n        }\n    }\n    return dist;\n}\n\nint demo() {\n    std::vector<std::vector<std::pair<int, int>>> adj{{{1, 1}, {2, 4}}, {{2, 2}, {3, 6}}, {{3, 3}}, {}};\n    auto dist = dijkstra(adj, 0);\n    return static_cast<int>(dist[3]);\n}",
+  "note": "A pair<distance, node> in a min-heap priority_queue with std::greater is C++'s Dijkstra idiom."
+ },
+ {
+  "id": "cpp/dsa/graph-union-find",
+  "lang": "cpp",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "union-find",
+   "dsu",
+   "path-compression"
+  ],
+  "code": "#include <numeric>\n#include <vector>\n\nclass DSU {\npublic:\n    explicit DSU(int n) : parent_(static_cast<std::size_t>(n)), rank_(static_cast<std::size_t>(n), 0) {\n        std::iota(parent_.begin(), parent_.end(), 0);\n    }\n\n    int find(int x) {\n        while (parent_[static_cast<std::size_t>(x)] != x) {\n            parent_[static_cast<std::size_t>(x)] = parent_[static_cast<std::size_t>(parent_[static_cast<std::size_t>(x)])];\n            x = parent_[static_cast<std::size_t>(x)];\n        }\n        return x;\n    }\n\n    bool unite(int a, int b) {\n        int ra = find(a), rb = find(b);\n        if (ra == rb) return false;\n        if (rank_[static_cast<std::size_t>(ra)] < rank_[static_cast<std::size_t>(rb)]) std::swap(ra, rb);\n        parent_[static_cast<std::size_t>(rb)] = ra;\n        if (rank_[static_cast<std::size_t>(ra)] == rank_[static_cast<std::size_t>(rb)]) ++rank_[static_cast<std::size_t>(ra)];\n        return true;\n    }\n\nprivate:\n    std::vector<int> parent_, rank_;\n};\n\nint demo() {\n    DSU d(6);\n    d.unite(0, 1);\n    d.unite(1, 2);\n    d.unite(3, 4);\n    return static_cast<int>(d.find(2) == d.find(0)) + static_cast<int>(d.unite(0, 2));\n}",
+  "note": "A vector<int> parent array with path compression is the standard C++ DSU, no allocation per union."
+ },
+ {
+  "id": "cpp/dsa/greedy-merge-intervals",
+  "lang": "cpp",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "greedy",
+   "intervals",
+   "merge"
+  ],
+  "code": "#include <algorithm>\n#include <utility>\n#include <vector>\n\nstd::vector<std::pair<int, int>> merge(std::vector<std::pair<int, int>> intervals) {\n    std::sort(intervals.begin(), intervals.end());\n    std::vector<std::pair<int, int>> out;\n    for (auto& iv : intervals) {\n        if (!out.empty() && iv.first <= out.back().second) {\n            out.back().second = std::max(out.back().second, iv.second);\n        } else {\n            out.push_back(iv);\n        }\n    }\n    return out;\n}\n\nint demo() {\n    auto merged = merge({{1, 3}, {2, 6}, {8, 10}, {15, 18}});\n    return static_cast<int>(merged.size()) * 10 + merged.front().second;\n}",
+  "note": "Sorting by start then extending-or-opening is the same one-pass rule as the Python version."
+ },
+ {
+  "id": "cpp/dsa/heap-priority-queue",
+  "lang": "cpp",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "heap",
+   "priority-queue"
+  ],
+  "code": "#include <functional>\n#include <queue>\n#include <vector>\n\nstd::vector<int> top_k(std::vector<int> xs, int k) {\n    std::priority_queue<int, std::vector<int>, std::greater<>> heap;\n    for (int x : xs) {\n        heap.push(x);\n        if (static_cast<int>(heap.size()) > k) heap.pop();\n    }\n    std::vector<int> out;\n    while (!heap.empty()) {\n        out.push_back(heap.top());\n        heap.pop();\n    }\n    return out;\n}\n\nint demo() {\n    auto k = top_k({3, 1, 9, 7, 2, 8}, 3);\n    int total = 0;\n    for (int x : k) total += x;\n    return total;\n}",
+  "note": "priority_queue with std::greater is a min-heap; the C++ mirror of Python's heapq default."
+ },
+ {
+  "id": "cpp/dsa/linked-list-cycle-detect",
+  "lang": "cpp",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "linked-list",
+   "floyd",
+   "raw-pointer"
+  ],
+  "code": "struct Node {\n    int val{};\n    Node* next{};\n};\n\nbool has_cycle(Node* head) {\n    Node* slow = head;\n    Node* fast = head;\n    while (fast && fast->next) {\n        slow = slow->next;\n        fast = fast->next->next;\n        if (slow == fast) return true;\n    }\n    return false;\n}\n\nint demo() {\n    Node a{1}, b{2}, c{3};\n    a.next = &b; b.next = &c; c.next = &a;\n    Node x{9};\n    return static_cast<int>(has_cycle(&a)) + static_cast<int>(has_cycle(&x));\n}",
+  "note": "Cycle detection needs raw pointers, not unique_ptr, since the structure is not tree-shaped."
+ },
+ {
+  "id": "cpp/dsa/linked-list-manual",
+  "lang": "cpp",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "linked-list",
+   "unique-ptr",
+   "manual-node"
+  ],
+  "code": "#include <memory>\n\nstruct ListNode {\n    int val{};\n    std::unique_ptr<ListNode> next;\n    explicit ListNode(int v) : val(v) {}\n};\n\nstd::unique_ptr<ListNode> reverse(std::unique_ptr<ListNode> head) {\n    std::unique_ptr<ListNode> prev;\n    while (head) {\n        auto next = std::move(head->next);\n        head->next = std::move(prev);\n        prev = std::move(head);\n        head = std::move(next);\n    }\n    return prev;\n}\n\nint demo() {\n    auto head = std::make_unique<ListNode>(1);\n    head->next = std::make_unique<ListNode>(2);\n    head->next->next = std::make_unique<ListNode>(3);\n    auto reversed = reverse(std::move(head));\n    return reversed->val * 100 + reversed->next->val * 10 + reversed->next->next->val;\n}",
+  "note": "Ownership walks forward via unique_ptr while a raw Node* trails behind as a non-owning cursor."
+ },
+ {
+  "id": "cpp/dsa/lru-cache",
+  "lang": "cpp",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "lru",
+   "cache",
+   "list",
+   "unordered-map"
+  ],
+  "code": "#include <list>\n#include <unordered_map>\n#include <utility>\n\nclass LRU {\npublic:\n    explicit LRU(int capacity) : capacity_(capacity) {}\n\n    int get(int key) {\n        auto it = index_.find(key);\n        if (it == index_.end()) return -1;\n        order_.splice(order_.begin(), order_, it->second);\n        return it->second->second;\n    }\n\n    void put(int key, int value) {\n        auto it = index_.find(key);\n        if (it != index_.end()) {\n            it->second->second = value;\n            order_.splice(order_.begin(), order_, it->second);\n            return;\n        }\n        if (static_cast<int>(order_.size()) >= capacity_) {\n            index_.erase(order_.back().first);\n            order_.pop_back();\n        }\n        order_.emplace_front(key, value);\n        index_[key] = order_.begin();\n    }\n\nprivate:\n    int capacity_;\n    std::list<std::pair<int, int>> order_;\n    std::unordered_map<int, std::list<std::pair<int, int>>::iterator> index_;\n};\n\nint demo() {\n    LRU cache(2);\n    cache.put(1, 1);\n    cache.put(2, 2);\n    int a = cache.get(1);\n    cache.put(3, 3);\n    int b = cache.get(2);\n    return a * 10 + (b + 1);\n}",
+  "note": "A list plus an unordered_map of iterators gives O(1) get and put with true recency order."
+ },
+ {
+  "id": "cpp/dsa/mergesort",
+  "lang": "cpp",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "mergesort",
+   "divide-conquer"
+  ],
+  "code": "#include <vector>\n\nstd::vector<int> mergesort(std::vector<int> xs) {\n    if (xs.size() <= 1) return xs;\n    std::size_t mid = xs.size() / 2;\n    auto left = mergesort({xs.begin(), xs.begin() + static_cast<long>(mid)});\n    auto right = mergesort({xs.begin() + static_cast<long>(mid), xs.end()});\n    std::vector<int> out;\n    std::size_t i = 0, j = 0;\n    while (i < left.size() && j < right.size()) {\n        if (left[i] <= right[j]) out.push_back(left[i++]);\n        else out.push_back(right[j++]);\n    }\n    out.insert(out.end(), left.begin() + static_cast<long>(i), left.end());\n    out.insert(out.end(), right.begin() + static_cast<long>(j), right.end());\n    return out;\n}\n\nint demo() {\n    auto s = mergesort({5, 2, 9, 1, 5, 6, 0});\n    return s.front() * 10 + s.back();\n}",
+  "note": "The <= in the merge step is what keeps the sort stable, exactly as in the Python version."
+ },
+ {
+  "id": "cpp/dsa/monotonic-stack",
+  "lang": "cpp",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "monotonic-stack",
+   "next-greater"
+  ],
+  "code": "#include <vector>\n\nstd::vector<int> next_greater(const std::vector<int>& xs) {\n    std::vector<int> out(xs.size(), -1);\n    std::vector<int> stack;\n    for (int i = 0; i < static_cast<int>(xs.size()); ++i) {\n        while (!stack.empty() && xs[static_cast<std::size_t>(stack.back())] < xs[static_cast<std::size_t>(i)]) {\n            out[static_cast<std::size_t>(stack.back())] = xs[static_cast<std::size_t>(i)];\n            stack.pop_back();\n        }\n        stack.push_back(i);\n    }\n    return out;\n}\n\nint demo() {\n    auto out = next_greater({2, 1, 2, 4, 3});\n    return out[0] * 100 + out[3];\n}",
+  "note": "Each index is pushed and popped once with a vector-as-stack, same amortised linear bound as Python."
+ },
+ {
+  "id": "cpp/dsa/prefix-sums",
+  "lang": "cpp",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "prefix-sum",
+   "unordered-map"
+  ],
+  "code": "#include <numeric>\n#include <unordered_map>\n#include <vector>\n\nstd::vector<long long> build(const std::vector<int>& xs) {\n    std::vector<long long> p(xs.size() + 1, 0);\n    std::partial_sum(xs.begin(), xs.end(), p.begin() + 1);\n    return p;\n}\n\nint count_subarrays_summing_to(const std::vector<int>& xs, int target) {\n    std::unordered_map<long long, int> seen{{0, 1}};\n    long long running = 0;\n    int total = 0;\n    for (int x : xs) {\n        running += x;\n        auto it = seen.find(running - target);\n        if (it != seen.end()) total += it->second;\n        ++seen[running];\n    }\n    return total;\n}\n\nint demo() {\n    auto p = build({1, 2, 3, 4, 5});\n    return static_cast<int>(p[4] - p[1]) + count_subarrays_summing_to({1, 1, 1}, 2);\n}",
+  "note": "A length n+1 prefix vector removes the index-zero special case, same as the Python version."
+ },
+ {
+  "id": "cpp/dsa/quicksort-lomuto",
+  "lang": "cpp",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "quicksort",
+   "lomuto",
+   "partition"
+  ],
+  "code": "#include <utility>\n#include <vector>\n\nvoid quicksort(std::vector<int>& xs, int lo, int hi) {\n    if (lo >= hi) return;\n    int pivot = xs[static_cast<std::size_t>(hi)];\n    int i = lo;\n    for (int j = lo; j < hi; ++j) {\n        if (xs[static_cast<std::size_t>(j)] < pivot) {\n            std::swap(xs[static_cast<std::size_t>(i)], xs[static_cast<std::size_t>(j)]);\n            ++i;\n        }\n    }\n    std::swap(xs[static_cast<std::size_t>(i)], xs[static_cast<std::size_t>(hi)]);\n    quicksort(xs, lo, i - 1);\n    quicksort(xs, i + 1, hi);\n}\n\nint demo() {\n    std::vector<int> xs{5, 2, 9, 1, 5, 6, 0};\n    quicksort(xs, 0, static_cast<int>(xs.size()) - 1);\n    return xs.front() * 10 + xs.back();\n}",
+  "note": "Same one-pass Lomuto partition as the Python version, using std::swap on vector elements."
+ },
+ {
+  "id": "cpp/dsa/sliding-window-variable",
+  "lang": "cpp",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "sliding-window",
+   "unordered-map"
+  ],
+  "code": "#include <string>\n#include <unordered_map>\n\nint longest_at_most_k_distinct(const std::string& s, int k) {\n    std::unordered_map<char, int> counts;\n    int left = 0, best = 0;\n    for (int right = 0; right < static_cast<int>(s.size()); ++right) {\n        ++counts[s[static_cast<std::size_t>(right)]];\n        while (static_cast<int>(counts.size()) > k) {\n            char c = s[static_cast<std::size_t>(left)];\n            if (--counts[c] == 0) counts.erase(c);\n            ++left;\n        }\n        best = std::max(best, right - left + 1);\n    }\n    return best;\n}\n\nint demo() { return longest_at_most_k_distinct(\"eceba\", 2); }",
+  "note": "A vector<vector<int>>-adjacent structure here is the frequency map; grow right, shrink left."
+ },
+ {
+  "id": "cpp/dsa/tree-bfs-levels",
+  "lang": "cpp",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "tree",
+   "bfs",
+   "queue"
+  ],
+  "code": "#include <memory>\n#include <queue>\n#include <vector>\n\nstruct TreeNode {\n    int val{};\n    std::unique_ptr<TreeNode> left, right;\n    explicit TreeNode(int v) : val(v) {}\n};\n\nstd::vector<std::vector<int>> levels(const TreeNode* root) {\n    std::vector<std::vector<int>> out;\n    if (!root) return out;\n    std::queue<const TreeNode*> q;\n    q.push(root);\n    while (!q.empty()) {\n        std::vector<int> row;\n        for (std::size_t n = q.size(); n > 0; --n) {\n            const TreeNode* node = q.front();\n            q.pop();\n            row.push_back(node->val);\n            if (node->left) q.push(node->left.get());\n            if (node->right) q.push(node->right.get());\n        }\n        out.push_back(row);\n    }\n    return out;\n}\n\nint demo() {\n    auto root = std::make_unique<TreeNode>(1);\n    root->left = std::make_unique<TreeNode>(2);\n    root->right = std::make_unique<TreeNode>(3);\n    auto rows = levels(root.get());\n    return static_cast<int>(rows.size()) * 10 + static_cast<int>(rows.back().size());\n}",
+  "note": "A plain queue<Node*> over non-owning pointers is the natural BFS frontier in C++."
+ },
+ {
+  "id": "cpp/dsa/tree-dfs-traversals",
+  "lang": "cpp",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "tree",
+   "dfs",
+   "traversal",
+   "unique-ptr"
+  ],
+  "code": "#include <memory>\n#include <vector>\n\nstruct TreeNode {\n    int val{};\n    std::unique_ptr<TreeNode> left, right;\n    explicit TreeNode(int v) : val(v) {}\n};\n\nvoid inorder(const TreeNode* n, std::vector<int>& out) {\n    if (!n) return;\n    inorder(n->left.get(), out);\n    out.push_back(n->val);\n    inorder(n->right.get(), out);\n}\n\nint demo() {\n    auto root = std::make_unique<TreeNode>(2);\n    root->left = std::make_unique<TreeNode>(1);\n    root->right = std::make_unique<TreeNode>(3);\n    std::vector<int> out;\n    inorder(root.get(), out);\n    return out[0] * 100 + out[1] * 10 + out[2];\n}",
+  "note": "Owning the children via unique_ptr means the whole tree frees itself when the root goes out of scope."
+ },
+ {
+  "id": "cpp/dsa/two-pointers-opposite",
+  "lang": "cpp",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "two-pointers",
+   "sorted"
+  ],
+  "code": "#include <algorithm>\n#include <utility>\n#include <vector>\n\nstd::pair<int, int> two_sum(const std::vector<int>& xs, int target) {\n    int i = 0, j = static_cast<int>(xs.size()) - 1;\n    while (i < j) {\n        int s = xs[static_cast<std::size_t>(i)] + xs[static_cast<std::size_t>(j)];\n        if (s == target) return {i, j};\n        if (s < target) ++i; else --j;\n    }\n    return {-1, -1};\n}\n\nint max_area(const std::vector<int>& h) {\n    int i = 0, j = static_cast<int>(h.size()) - 1, best = 0;\n    while (i < j) {\n        best = std::max(best, (j - i) * std::min(h[static_cast<std::size_t>(i)], h[static_cast<std::size_t>(j)]));\n        if (h[static_cast<std::size_t>(i)] < h[static_cast<std::size_t>(j)]) ++i; else --j;\n    }\n    return best;\n}\n\nint demo() {\n    auto [i, j] = two_sum({1, 3, 4, 6, 9}, 10);\n    return i + j + max_area({1, 8, 6, 2, 5, 4, 8, 3, 7});\n}",
+  "note": "Same sum-driven pointer movement as the Python version, now over an iterator-free index pair."
+ }
+]

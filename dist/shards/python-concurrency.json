@@ -1,0 +1,106 @@
+[
+ {
+  "id": "python/concurrency/futures-exceptions",
+  "lang": "python",
+  "topic": "concurrency",
+  "tier": 3,
+  "tags": [
+   "concurrent-futures",
+   "exceptions",
+   "cancel"
+  ],
+  "code": "from concurrent.futures import ThreadPoolExecutor, wait, FIRST_EXCEPTION\n\ndef risky(n):\n    if n == 3:\n        raise ValueError(\"three is bad\")\n    return n\n\nwith ThreadPoolExecutor(max_workers=2) as pool:\n    futures = [pool.submit(risky, n) for n in range(5)]\n    done, pending = wait(futures, return_when=FIRST_EXCEPTION)\n    errors, values = [], []\n    for f in futures:\n        try:\n            values.append(f.result())\n        except ValueError as e:\n            errors.append(str(e))\n\nprint(values, errors, len(done) + len(pending) == 5)",
+  "note": "An exception inside a worker surfaces when you touch result(), not when the task runs."
+ },
+ {
+  "id": "python/concurrency/futures-executor",
+  "lang": "python",
+  "topic": "concurrency",
+  "tier": 2,
+  "tags": [
+   "concurrent-futures",
+   "executor",
+   "as-completed"
+  ],
+  "code": "import time\nfrom concurrent.futures import ThreadPoolExecutor, as_completed\n\ndef work(n):\n    time.sleep(0.02 / n)\n    return n * n\n\nwith ThreadPoolExecutor(max_workers=4) as pool:\n    ordered = list(pool.map(work, [1, 2, 3, 4]))\n    futures = {pool.submit(work, n): n for n in (1, 2, 3, 4)}\n    arrival = [futures[f] for f in as_completed(futures)]\n\nprint(ordered, sorted(arrival) == [1, 2, 3, 4], arrival != ordered or True)",
+  "note": "map keeps input order; as_completed yields whichever future finishes first."
+ },
+ {
+  "id": "python/concurrency/gil-cpu-vs-io",
+  "lang": "python",
+  "topic": "concurrency",
+  "tier": 3,
+  "tags": [
+   "gil",
+   "threading",
+   "io-bound"
+  ],
+  "code": "import time\nfrom concurrent.futures import ThreadPoolExecutor\n\ndef io_bound(n):\n    time.sleep(0.05)\n    return n\n\ndef cpu_bound(n):\n    return sum(i * i for i in range(200_000))\n\ndef timed(fn, workers):\n    t0 = time.perf_counter()\n    with ThreadPoolExecutor(max_workers=workers) as pool:\n        list(pool.map(fn, range(4)))\n    return time.perf_counter() - t0\n\nio_serial, io_parallel = timed(io_bound, 1), timed(io_bound, 4)\nprint(io_serial > 0.19, io_parallel < 0.12, round(io_serial / io_parallel, 1) > 2)",
+  "note": "Threads help IO-bound work because the GIL is released during the wait; CPU-bound work needs processes."
+ },
+ {
+  "id": "python/concurrency/multiprocessing-pool",
+  "lang": "python",
+  "topic": "concurrency",
+  "tier": 3,
+  "tags": [
+   "multiprocessing",
+   "pool",
+   "cpu-bound"
+  ],
+  "code": "import multiprocessing as mp\n\ndef heavy(n):\n    return sum(i * i for i in range(n))\n\ndef main():\n    with mp.Pool(processes=2) as pool:\n        squares = pool.map(heavy, [1000, 2000, 3000])\n        lazy = list(pool.imap_unordered(heavy, [500, 1500]))\n        starred = pool.starmap(pow, [(2, 10), (3, 4)])\n    return squares[0], len(lazy), starred\n\nif __name__ == \"__main__\":\n    print(main())",
+  "note": "Pool sidesteps the GIL by using processes, so the payload must be picklable."
+ },
+ {
+  "id": "python/concurrency/multiprocessing-shared-memory",
+  "lang": "python",
+  "topic": "concurrency",
+  "tier": 4,
+  "tags": [
+   "multiprocessing",
+   "shared-memory",
+   "buffer"
+  ],
+  "code": "from multiprocessing import shared_memory\nimport numpy as np\n\ndef main():\n    src = np.arange(12, dtype=np.int64)\n    shm = shared_memory.SharedMemory(create=True, size=src.nbytes)\n    try:\n        view = np.ndarray(src.shape, dtype=src.dtype, buffer=shm.buf)\n        view[:] = src\n        view[0] = 99\n        attached = shared_memory.SharedMemory(name=shm.name)\n        mirror = np.ndarray(src.shape, dtype=src.dtype, buffer=attached.buf)\n        result = (mirror[0], mirror.sum(), shm.name == attached.name)\n        attached.close()\n        return result\n    finally:\n        shm.close()\n        shm.unlink()\n\nif __name__ == \"__main__\":\n    print(main())",
+  "note": "shared_memory gives processes one buffer with no pickling, but you must unlink it exactly once."
+ },
+ {
+  "id": "python/concurrency/threading-event",
+  "lang": "python",
+  "topic": "concurrency",
+  "tier": 3,
+  "tags": [
+   "threading",
+   "event",
+   "signalling"
+  ],
+  "code": "import threading, time\n\nready = threading.Event()\nstop = threading.Event()\nseen = []\n\ndef worker(name):\n    ready.wait(timeout=1.0)\n    while not stop.is_set():\n        seen.append(name)\n        time.sleep(0.001)\n\nthreads = [threading.Thread(target=worker, args=(i,)) for i in range(3)]\nfor t in threads:\n    t.start()\nready.set()\ntime.sleep(0.02)\nstop.set()\nfor t in threads:\n    t.join()\nprint(ready.is_set(), len(seen) > 0, len(set(seen)))",
+  "note": "An Event is a one-way latch: once set it stays set, and every waiter wakes at once."
+ },
+ {
+  "id": "python/concurrency/threading-lock",
+  "lang": "python",
+  "topic": "concurrency",
+  "tier": 3,
+  "tags": [
+   "threading",
+   "lock",
+   "race-condition"
+  ],
+  "code": "import threading\n\ncounter = 0\nlock = threading.Lock()\n\ndef bump(times):\n    global counter\n    for _ in range(times):\n        with lock:\n            counter += 1\n\nthreads = [threading.Thread(target=bump, args=(20000,)) for _ in range(4)]\nfor t in threads:\n    t.start()\nfor t in threads:\n    t.join()\nprint(counter, counter == 80000)",
+  "note": "Without the lock this counter loses increments; += is read, add and write, not one step."
+ },
+ {
+  "id": "python/concurrency/threading-queue",
+  "lang": "python",
+  "topic": "concurrency",
+  "tier": 3,
+  "tags": [
+   "threading",
+   "queue",
+   "producer-consumer"
+  ],
+  "code": "import queue, threading\n\nwork = queue.Queue(maxsize=8)\nresults = queue.Queue()\nSENTINEL = object()\n\ndef consumer():\n    while True:\n        item = work.get()\n        if item is SENTINEL:\n            work.task_done()\n            return\n        results.put(item * item)\n        work.task_done()\n\nworkers = [threading.Thread(target=consumer) for _ in range(3)]\nfor w in workers:\n    w.start()\nfor n in range(20):\n    work.put(n)\nfor _ in workers:\n    work.put(SENTINEL)\nwork.join()\nfor w in workers:\n    w.join()\nprint(results.qsize(), sum(results.get() for _ in range(20)))",
+  "note": "A sentinel per consumer is the simplest clean shutdown; task_done pairs with join."
+ }
+]

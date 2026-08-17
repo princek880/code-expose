@@ -1,0 +1,134 @@
+[
+ {
+  "id": "cpp/nways/dedup-set-vs-sort-unique",
+  "lang": "cpp",
+  "topic": "nways",
+  "tier": 2,
+  "tags": [
+   "nways",
+   "deduplicate",
+   "set",
+   "unique"
+  ],
+  "code": "#include <algorithm>\n#include <set>\n#include <vector>\n\nint demo() {\n    std::vector<int> xs{5, 1, 5, 3, 1, 2};\n\n    std::set<int> via_set(xs.begin(), xs.end());\n\n    std::vector<int> via_sort = xs;\n    std::sort(via_sort.begin(), via_sort.end());\n    via_sort.erase(std::unique(via_sort.begin(), via_sort.end()), via_sort.end());\n\n    return static_cast<int>(via_set.size()) + static_cast<int>(via_sort.size());\n}",
+  "note": "std::set dedups on insert at O(log n) each; sort-then-unique dedups a vector in one O(n log n) pass."
+ },
+ {
+  "id": "cpp/nways/fibonacci-iterative-vs-recursive",
+  "lang": "cpp",
+  "topic": "nways",
+  "tier": 2,
+  "tags": [
+   "nways",
+   "fibonacci",
+   "recursion"
+  ],
+  "code": "long long fib_recursive(int n) {\n    return n < 2 ? n : fib_recursive(n - 1) + fib_recursive(n - 2);\n}\n\nlong long fib_iterative(int n) {\n    long long a = 0, b = 1;\n    for (int i = 0; i < n; ++i) {\n        long long next = a + b;\n        a = b;\n        b = next;\n    }\n    return a;\n}\n\nint demo() {\n    return static_cast<int>(fib_recursive(15) + fib_iterative(50) % 1000);\n}",
+  "note": "The recursive version recomputes every subproblem exponentially; the loop computes each one exactly once."
+ },
+ {
+  "id": "cpp/nways/matrix-multiply-loop-reordered",
+  "lang": "cpp",
+  "topic": "nways",
+  "tier": 3,
+  "tags": [
+   "nways",
+   "matrix-multiply",
+   "cache-optimization"
+  ],
+  "code": "#include <vector>\n\nusing Mat = std::vector<std::vector<double>>;\n\nMat multiply_ikj(const Mat& a, const Mat& b) {\n    std::size_t n = a.size(), m = b[0].size(), k = b.size();\n    Mat c(n, std::vector<double>(m, 0.0));\n    for (std::size_t i = 0; i < n; ++i) {\n        for (std::size_t p = 0; p < k; ++p) {\n            double aip = a[i][p];\n            for (std::size_t j = 0; j < m; ++j) {\n                c[i][j] += aip * b[p][j];\n            }\n        }\n    }\n    return c;\n}\n\nint demo() {\n    Mat a{{1, 2}, {3, 4}}, b{{5, 6}, {7, 8}};\n    auto c = multiply_ikj(a, b);\n    return static_cast<int>(c[0][0] + c[1][1]);\n}",
+  "note": "Swapping to i-k-j strides sequentially through both b's row and c's row, which is far more cache-friendly."
+ },
+ {
+  "id": "cpp/nways/matrix-multiply-triple-loop",
+  "lang": "cpp",
+  "topic": "nways",
+  "tier": 2,
+  "tags": [
+   "nways",
+   "matrix-multiply",
+   "naive"
+  ],
+  "code": "#include <vector>\n\nusing Mat = std::vector<std::vector<double>>;\n\nMat multiply_naive(const Mat& a, const Mat& b) {\n    std::size_t n = a.size(), m = b[0].size(), k = b.size();\n    Mat c(n, std::vector<double>(m, 0.0));\n    for (std::size_t i = 0; i < n; ++i)\n        for (std::size_t j = 0; j < m; ++j)\n            for (std::size_t p = 0; p < k; ++p)\n                c[i][j] += a[i][p] * b[p][j];\n    return c;\n}\n\nint demo() {\n    Mat a{{1, 2}, {3, 4}}, b{{5, 6}, {7, 8}};\n    auto c = multiply_naive(a, b);\n    return static_cast<int>(c[0][0] + c[1][1]);\n}",
+  "note": "The textbook i-j-k loop order strides down each column of B, which is the cache-unfriendly access pattern."
+ },
+ {
+  "id": "cpp/nways/parallel-sum-threads-vs-reduce",
+  "lang": "cpp",
+  "topic": "nways",
+  "tier": 3,
+  "tags": [
+   "nways",
+   "parallel-sum",
+   "threading"
+  ],
+  "code": "#include <execution>\n#include <numeric>\n#include <thread>\n#include <vector>\n\nlong long manual_parallel_sum(const std::vector<int>& xs, int workers) {\n    std::vector<long long> partial(static_cast<std::size_t>(workers), 0);\n    std::vector<std::thread> threads;\n    std::size_t chunk = xs.size() / static_cast<std::size_t>(workers);\n\n    for (int w = 0; w < workers; ++w) {\n        threads.emplace_back([&, w] {\n            std::size_t start = static_cast<std::size_t>(w) * chunk;\n            std::size_t end = (w == workers - 1) ? xs.size() : start + chunk;\n            long long sum = 0;\n            for (std::size_t i = start; i < end; ++i) sum += xs[i];\n            partial[static_cast<std::size_t>(w)] = sum;\n        });\n    }\n    for (auto& t : threads) t.join();\n\n    long long total = 0;\n    for (long long p : partial) total += p;\n    return total;\n}\n\nint demo() {\n    std::vector<int> xs(1000, 1);\n    long long manual = manual_parallel_sum(xs, 4);\n    long long via_reduce = std::reduce(std::execution::par, xs.begin(), xs.end(), 0LL);\n    return static_cast<int>(manual == via_reduce) + static_cast<int>(manual % 1000);\n}",
+  "note": "Hand-split threads need a manual join and combine step that std::reduce(par) does for you internally."
+ },
+ {
+  "id": "cpp/nways/singleton-call-once",
+  "lang": "cpp",
+  "topic": "nways",
+  "tier": 3,
+  "tags": [
+   "nways",
+   "singleton",
+   "call-once"
+  ],
+  "code": "#include <mutex>\n\nclass LazySingleton {\npublic:\n    static LazySingleton& instance() {\n        std::call_once(flag_, [] { inst_ = new LazySingleton(); });\n        return *inst_;\n    }\n    int value{0};\n\nprivate:\n    LazySingleton() = default;\n    static inline LazySingleton* inst_ = nullptr;\n    static inline std::once_flag flag_;\n};\n\nint demo() {\n    LazySingleton::instance().value = 9;\n    return LazySingleton::instance().value;\n}",
+  "note": "call_once with a static once_flag guarantees the initialiser runs exactly once, even racing across threads."
+ },
+ {
+  "id": "cpp/nways/singleton-meyers-vs-static-ptr",
+  "lang": "cpp",
+  "topic": "nways",
+  "tier": 3,
+  "tags": [
+   "nways",
+   "singleton",
+   "meyers"
+  ],
+  "code": "class MeyersSingleton {\npublic:\n    static MeyersSingleton& instance() {\n        static MeyersSingleton inst;\n        return inst;\n    }\n    int value{0};\n\nprivate:\n    MeyersSingleton() = default;\n};\n\nclass PointerSingleton {\npublic:\n    static PointerSingleton* instance() {\n        if (!inst_) inst_ = new PointerSingleton();\n        return inst_;\n    }\n    int value{0};\n\nprivate:\n    PointerSingleton() = default;\n    static inline PointerSingleton* inst_ = nullptr;\n};\n\nint demo() {\n    MeyersSingleton::instance().value = 5;\n    PointerSingleton::instance()->value = 7;\n    return MeyersSingleton::instance().value + PointerSingleton::instance()->value;\n}",
+  "note": "A function-local static is guaranteed thread-safe initialisation since C++11; the raw pointer version is not."
+ },
+ {
+  "id": "cpp/nways/sum-loop-vs-accumulate",
+  "lang": "cpp",
+  "topic": "nways",
+  "tier": 1,
+  "tags": [
+   "nways",
+   "sum",
+   "accumulate"
+  ],
+  "code": "#include <numeric>\n#include <vector>\n\nint demo() {\n    std::vector<int> xs{1, 2, 3, 4, 5};\n\n    int manual = 0;\n    for (int x : xs) manual += x;\n\n    int via_accumulate = std::accumulate(xs.begin(), xs.end(), 0);\n    return manual + via_accumulate;\n}",
+  "note": "std::accumulate is the STL name for reduce; both compile down to the same loop with -O2."
+ },
+ {
+  "id": "cpp/nways/sum-reduce-execution-policy",
+  "lang": "cpp",
+  "topic": "nways",
+  "tier": 3,
+  "tags": [
+   "nways",
+   "sum",
+   "reduce",
+   "execution-policy"
+  ],
+  "code": "#include <execution>\n#include <numeric>\n#include <vector>\n\nint demo() {\n    std::vector<int> xs(1000);\n    for (int i = 0; i < 1000; ++i) xs[static_cast<std::size_t>(i)] = i;\n\n    int sequential = std::reduce(std::execution::seq, xs.begin(), xs.end(), 0);\n    int parallel = std::reduce(std::execution::par, xs.begin(), xs.end(), 0);\n    return static_cast<int>(sequential == parallel) + sequential % 1000;\n}",
+  "note": "std::reduce with an execution policy may sum out of order, which is only safe when addition truly commutes here."
+ },
+ {
+  "id": "cpp/nways/swap-std-swap-vs-manual",
+  "lang": "cpp",
+  "topic": "nways",
+  "tier": 1,
+  "tags": [
+   "nways",
+   "swap",
+   "move"
+  ],
+  "code": "#include <utility>\n\nint demo() {\n    int a = 1, b = 2;\n    std::swap(a, b);\n\n    int x = 3, y = 4;\n    int temp = x;\n    x = y;\n    y = temp;\n\n    return a * 1000 + b * 100 + x * 10 + y;\n}",
+  "note": "std::swap uses move assignment under the hood, so it is never slower than the hand-written version."
+ }
+]

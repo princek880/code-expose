@@ -1,0 +1,107 @@
+[
+ {
+  "id": "cpp/concurrency/atomic-flag-spinlock",
+  "lang": "cpp",
+  "topic": "concurrency",
+  "tier": 3,
+  "tags": [
+   "atomic-flag",
+   "spinlock",
+   "test-and-set"
+  ],
+  "code": "#include <atomic>\n#include <thread>\n#include <vector>\n\nclass SpinLock {\npublic:\n    void lock() {\n        while (flag_.test_and_set(std::memory_order_acquire)) {\n        }\n    }\n    void unlock() { flag_.clear(std::memory_order_release); }\n\nprivate:\n    std::atomic_flag flag_ = ATOMIC_FLAG_INIT;\n};\n\nint demo() {\n    SpinLock lock;\n    int total = 0;\n    std::vector<std::thread> threads;\n    for (int i = 0; i < 8; ++i) {\n        threads.emplace_back([&] {\n            for (int k = 0; k < 1000; ++k) {\n                lock.lock();\n                ++total;\n                lock.unlock();\n            }\n        });\n    }\n    for (auto& t : threads) t.join();\n    return total;\n}",
+  "note": "atomic_flag is the one lock-free type the standard guarantees; a spinlock is its textbook use."
+ },
+ {
+  "id": "cpp/concurrency/condition-variable-wait",
+  "lang": "cpp",
+  "topic": "concurrency",
+  "tier": 3,
+  "tags": [
+   "condition-variable",
+   "predicate",
+   "spurious-wakeup"
+  ],
+  "code": "#include <condition_variable>\n#include <mutex>\n#include <queue>\n#include <thread>\n\nint demo() {\n    std::mutex m;\n    std::condition_variable cv;\n    std::queue<int> q;\n    bool done = false;\n\n    std::thread producer([&] {\n        for (int i = 0; i < 5; ++i) {\n            {\n                std::lock_guard<std::mutex> lock(m);\n                q.push(i);\n            }\n            cv.notify_one();\n        }\n        {\n            std::lock_guard<std::mutex> lock(m);\n            done = true;\n        }\n        cv.notify_one();\n    });\n\n    int total = 0;\n    std::unique_lock<std::mutex> lock(m);\n    while (!done || !q.empty()) {\n        cv.wait(lock, [&] { return !q.empty() || done; });\n        while (!q.empty()) {\n            total += q.front();\n            q.pop();\n        }\n    }\n    lock.unlock();\n    producer.join();\n    return total;\n}",
+  "note": "wait with a predicate loops internally, which is what protects against spurious wakeups."
+ },
+ {
+  "id": "cpp/concurrency/future-promise-async",
+  "lang": "cpp",
+  "topic": "concurrency",
+  "tier": 2,
+  "tags": [
+   "future",
+   "promise",
+   "async",
+   "packaged-task"
+  ],
+  "code": "#include <future>\n#include <thread>\n\nint demo() {\n    std::promise<int> prom;\n    std::future<int> fut = prom.get_future();\n    std::thread producer([&] { prom.set_value(42); });\n    int from_promise = fut.get();\n    producer.join();\n\n    auto fut2 = std::async(std::launch::async, [] { return 10 + 5; });\n    int from_async = fut2.get();\n\n    std::packaged_task<int(int)> task([](int x) { return x * x; });\n    std::future<int> fut3 = task.get_future();\n    std::thread runner(std::move(task), 6);\n    int from_task = fut3.get();\n    runner.join();\n\n    return from_promise + from_async + from_task;\n}",
+  "note": "std::async may run the task on another thread or lazily on get(); std::launch::async forces the former."
+ },
+ {
+  "id": "cpp/concurrency/latch-barrier",
+  "lang": "cpp",
+  "topic": "concurrency",
+  "tier": 4,
+  "tags": [
+   "latch",
+   "barrier",
+   "synchronization"
+  ],
+  "code": "#include <atomic>\n#include <barrier>\n#include <latch>\n#include <thread>\n#include <vector>\n\nint demo() {\n    std::latch start_gate(1);\n    std::atomic<int> ready_count{0};\n    std::vector<std::thread> workers;\n    for (int i = 0; i < 4; ++i) {\n        workers.emplace_back([&] {\n            ready_count.fetch_add(1);\n            start_gate.wait();\n        });\n    }\n    while (ready_count.load() < 4) {\n    }\n    start_gate.count_down();\n    for (auto& t : workers) t.join();\n\n    std::atomic<int> phase{0};\n    std::barrier sync_point(3, [&] { phase.fetch_add(1); });\n    std::vector<std::thread> phased;\n    for (int i = 0; i < 3; ++i) {\n        phased.emplace_back([&] {\n            sync_point.arrive_and_wait();\n            sync_point.arrive_and_wait();\n        });\n    }\n    for (auto& t : phased) t.join();\n\n    return ready_count.load() + phase.load();\n}",
+  "note": "A latch counts down once and cannot reset; a barrier resets automatically for the next phase."
+ },
+ {
+  "id": "cpp/concurrency/mutex-lock-guard-unique-lock",
+  "lang": "cpp",
+  "topic": "concurrency",
+  "tier": 2,
+  "tags": [
+   "mutex",
+   "lock-guard",
+   "unique-lock"
+  ],
+  "code": "#include <mutex>\n#include <thread>\n#include <vector>\n\nint demo() {\n    std::mutex m;\n    int total = 0;\n\n    auto bump = [&] {\n        std::lock_guard<std::mutex> guard(m);\n        total += 1;\n    };\n\n    std::vector<std::thread> threads;\n    for (int i = 0; i < 8; ++i) threads.emplace_back(bump);\n    for (auto& t : threads) t.join();\n\n    std::unique_lock<std::mutex> lock(m);\n    total += 10;\n    lock.unlock();\n    total += 1;\n    lock.lock();\n    total += 1;\n\n    return total;\n}",
+  "note": "lock_guard cannot unlock early; unique_lock can, which is why condition_variable needs the latter."
+ },
+ {
+  "id": "cpp/concurrency/scoped-lock-shared-mutex",
+  "lang": "cpp",
+  "topic": "concurrency",
+  "tier": 3,
+  "tags": [
+   "scoped-lock",
+   "shared-mutex",
+   "reader-writer"
+  ],
+  "code": "#include <mutex>\n#include <shared_mutex>\n#include <thread>\n#include <vector>\n\nint demo() {\n    std::mutex a, b;\n    std::scoped_lock lock(a, b);\n\n    std::shared_mutex rw;\n    int data = 0;\n\n    auto writer = [&] {\n        std::unique_lock<std::shared_mutex> wl(rw);\n        data += 1;\n    };\n    auto reader = [&] {\n        std::shared_lock<std::shared_mutex> rl(rw);\n        return data;\n    };\n\n    std::vector<std::thread> writers;\n    for (int i = 0; i < 5; ++i) writers.emplace_back(writer);\n    for (auto& t : writers) t.join();\n\n    return reader();\n}",
+  "note": "scoped_lock takes several mutexes at once and locks them in a deadlock-avoiding order."
+ },
+ {
+  "id": "cpp/concurrency/thread-jthread-stop",
+  "lang": "cpp",
+  "topic": "concurrency",
+  "tier": 3,
+  "tags": [
+   "jthread",
+   "stop-token",
+   "cooperative-cancellation"
+  ],
+  "code": "#include <atomic>\n#include <thread>\n\nint demo() {\n    std::atomic<int> ticks{0};\n    {\n        std::jthread worker([&](std::stop_token tok) {\n            while (!tok.stop_requested()) {\n                ticks.fetch_add(1, std::memory_order_relaxed);\n            }\n        });\n        while (ticks.load() < 1000) {\n        }\n    }\n    return static_cast<int>(ticks.load() >= 1000);\n}",
+  "note": "jthread joins automatically on destruction and carries a stop_token no plain thread has."
+ },
+ {
+  "id": "cpp/concurrency/thread-pool-skeleton",
+  "lang": "cpp",
+  "topic": "concurrency",
+  "tier": 3,
+  "tags": [
+   "thread-pool",
+   "work-queue",
+   "condition-variable"
+  ],
+  "code": "#include <condition_variable>\n#include <functional>\n#include <future>\n#include <mutex>\n#include <queue>\n#include <thread>\n#include <vector>\n\nclass ThreadPool {\npublic:\n    explicit ThreadPool(int n) {\n        for (int i = 0; i < n; ++i) {\n            workers_.emplace_back([this] { worker_loop(); });\n        }\n    }\n\n    ~ThreadPool() {\n        {\n            std::lock_guard<std::mutex> lock(m_);\n            stop_ = true;\n        }\n        cv_.notify_all();\n        for (auto& t : workers_) t.join();\n    }\n\n    std::future<int> submit(std::function<int()> job) {\n        auto task = std::make_shared<std::packaged_task<int()>>(std::move(job));\n        std::future<int> fut = task->get_future();\n        {\n            std::lock_guard<std::mutex> lock(m_);\n            queue_.push([task] { (*task)(); });\n        }\n        cv_.notify_one();\n        return fut;\n    }\n\nprivate:\n    void worker_loop() {\n        while (true) {\n            std::function<void()> job;\n            {\n                std::unique_lock<std::mutex> lock(m_);\n                cv_.wait(lock, [this] { return stop_ || !queue_.empty(); });\n                if (stop_ && queue_.empty()) return;\n                job = std::move(queue_.front());\n                queue_.pop();\n            }\n            job();\n        }\n    }\n\n    std::vector<std::thread> workers_;\n    std::queue<std::function<void()>> queue_;\n    std::mutex m_;\n    std::condition_variable cv_;\n    bool stop_{false};\n};\n\nint demo() {\n    ThreadPool pool(4);\n    auto a = pool.submit([] { return 2 + 2; });\n    auto b = pool.submit([] { return 3 * 3; });\n    return a.get() + b.get();\n}",
+  "note": "Workers block on an empty queue via condition_variable instead of spinning, so idle costs nothing."
+ }
+]

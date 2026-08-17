@@ -1,0 +1,201 @@
+[
+ {
+  "id": "cpp/cuda/atomics-histogram",
+  "lang": "cpp",
+  "topic": "cuda",
+  "tier": 3,
+  "tags": [
+   "cuda",
+   "atomics",
+   "histogram"
+  ],
+  "code": "__global__ void histogram(const unsigned char* data, int n, int* bins) {\n    int i = blockIdx.x * blockDim.x + threadIdx.x;\n    if (i < n) {\n        atomicAdd(&bins[data[i]], 1);\n    }\n}\n\n__global__ void histogram_shared(const unsigned char* data, int n, int* bins, int num_bins) {\n    extern __shared__ int local_bins[];\n    for (int b = threadIdx.x; b < num_bins; b += blockDim.x) {\n        local_bins[b] = 0;\n    }\n    __syncthreads();\n\n    int i = blockIdx.x * blockDim.x + threadIdx.x;\n    if (i < n) {\n        atomicAdd(&local_bins[data[i]], 1);\n    }\n    __syncthreads();\n\n    for (int b = threadIdx.x; b < num_bins; b += blockDim.x) {\n        atomicAdd(&bins[b], local_bins[b]);\n    }\n}",
+  "note": "Every increment races with every other thread, which is exactly the case atomicAdd exists to make safe."
+ },
+ {
+  "id": "cpp/cuda/device-host-forceinline",
+  "lang": "cpp",
+  "topic": "cuda",
+  "tier": 2,
+  "tags": [
+   "cuda",
+   "device",
+   "host",
+   "forceinline"
+  ],
+  "code": "__host__ __device__ __forceinline__ float clampf(float x, float lo, float hi) {\n    return x < lo ? lo : (x > hi ? hi : x);\n}\n\n__device__ float lerp(float a, float b, float t) {\n    return a + t * (b - a);\n}\n\n__global__ void apply_clamp(float* data, int n, float lo, float hi) {\n    int i = blockIdx.x * blockDim.x + threadIdx.x;\n    if (i < n) {\n        data[i] = clampf(lerp(data[i], 0.0f, 0.1f), lo, hi);\n    }\n}",
+  "note": "A __host__ __device__ function compiles twice, once for the CPU path and once for the GPU path."
+ },
+ {
+  "id": "cpp/cuda/error-check-macro",
+  "lang": "cpp",
+  "topic": "cuda",
+  "tier": 3,
+  "tags": [
+   "cuda",
+   "error-handling",
+   "macro"
+  ],
+  "code": "#include <cstdio>\n#include <cstdlib>\n\n#define CUDA_CHECK(call)                                                     \\\n    do {                                                                     \\\n        cudaError_t err = (call);                                            \\\n        if (err != cudaSuccess) {                                            \\\n            std::fprintf(stderr, \"CUDA error %s at %s:%d\\n\",                 \\\n                         cudaGetErrorString(err), __FILE__, __LINE__);       \\\n            std::exit(1);                                                    \\\n        }                                                                    \\\n    } while (0)\n\nvoid run(float* host_data, int n) {\n    float* device_data = nullptr;\n    size_t bytes = static_cast<size_t>(n) * sizeof(float);\n    CUDA_CHECK(cudaMalloc(&device_data, bytes));\n    CUDA_CHECK(cudaMemcpy(device_data, host_data, bytes, cudaMemcpyHostToDevice));\n    CUDA_CHECK(cudaFree(device_data));\n}",
+  "note": "Every CUDA call returns a status; wrapping it in a macro is the only way anyone actually checks it."
+ },
+ {
+  "id": "cpp/cuda/events-timing",
+  "lang": "cpp",
+  "topic": "cuda",
+  "tier": 3,
+  "tags": [
+   "cuda",
+   "events",
+   "timing"
+  ],
+  "code": "#include <cstdio>\n\nfloat time_kernel_launch(void (*launch)()) {\n    cudaEvent_t start, stop;\n    cudaEventCreate(&start);\n    cudaEventCreate(&stop);\n\n    cudaEventRecord(start);\n    launch();\n    cudaEventRecord(stop);\n    cudaEventSynchronize(stop);\n\n    float ms = 0.0f;\n    cudaEventElapsedTime(&ms, start, stop);\n\n    cudaEventDestroy(start);\n    cudaEventDestroy(stop);\n    return ms;\n}",
+  "note": "cudaEventElapsedTime needs both events recorded and synchronized first, or the reading is undefined."
+ },
+ {
+  "id": "cpp/cuda/grid-stride-loop",
+  "lang": "cpp",
+  "topic": "cuda",
+  "tier": 3,
+  "tags": [
+   "cuda",
+   "grid-stride-loop"
+  ],
+  "code": "__global__ void saxpy_grid_stride(float a, const float* x, float* y, int n) {\n    int stride = blockDim.x * gridDim.x;\n    for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < n; i += stride) {\n        y[i] = a * x[i] + y[i];\n    }\n}\n\nvoid launch(float a, const float* d_x, float* d_y, int n) {\n    int threads = 256;\n    int blocks = 128;\n    saxpy_grid_stride<<<blocks, threads>>>(a, d_x, d_y, n);\n}",
+  "note": "A grid-stride loop lets one launch config handle any n, since each thread just wraps around the whole grid."
+ },
+ {
+  "id": "cpp/cuda/index-math-2d",
+  "lang": "cpp",
+  "topic": "cuda",
+  "tier": 2,
+  "tags": [
+   "cuda",
+   "indexing",
+   "2d"
+  ],
+  "code": "__global__ void fill_grid(float* out, int width, int height) {\n    int x = blockIdx.x * blockDim.x + threadIdx.x;\n    int y = blockIdx.y * blockDim.y + threadIdx.y;\n    if (x < width && y < height) {\n        int idx = y * width + x;\n        out[idx] = static_cast<float>(x + y);\n    }\n}\n\nvoid launch(float* d_out, int width, int height) {\n    dim3 block(16, 16);\n    dim3 grid((width + block.x - 1) / block.x, (height + block.y - 1) / block.y);\n    fill_grid<<<grid, block>>>(d_out, width, height);\n}",
+  "note": "A 2D launch still flattens to one linear offset; row-major means width multiplies the row index."
+ },
+ {
+  "id": "cpp/cuda/kernel-definition-launch",
+  "lang": "cpp",
+  "topic": "cuda",
+  "tier": 2,
+  "tags": [
+   "cuda",
+   "kernel",
+   "launch"
+  ],
+  "code": "__global__ void add_one(int* data, int n) {\n    int i = blockIdx.x * blockDim.x + threadIdx.x;\n    if (i < n) {\n        data[i] += 1;\n    }\n}\n\nvoid launch(int* d_data, int n) {\n    int threads = 256;\n    int blocks = (n + threads - 1) / threads;\n    add_one<<<blocks, threads>>>(d_data, n);\n    cudaDeviceSynchronize();\n}",
+  "note": "The <<<grid, block>>> syntax is CUDA's own extension; nvcc strips it before handing off to the host compiler."
+ },
+ {
+  "id": "cpp/cuda/malloc-memcpy-free",
+  "lang": "cpp",
+  "topic": "cuda",
+  "tier": 2,
+  "tags": [
+   "cuda",
+   "cudaMalloc",
+   "cudaMemcpy"
+  ],
+  "code": "#include <cstdio>\n#include <cstdlib>\n\n__global__ void scale(float* data, float factor, int n) {\n    int i = blockIdx.x * blockDim.x + threadIdx.x;\n    if (i < n) data[i] *= factor;\n}\n\nvoid run(float* host_data, int n) {\n    float* device_data = nullptr;\n    size_t bytes = static_cast<size_t>(n) * sizeof(float);\n\n    cudaMalloc(&device_data, bytes);\n    cudaMemcpy(device_data, host_data, bytes, cudaMemcpyHostToDevice);\n\n    scale<<<(n + 255) / 256, 256>>>(device_data, 2.0f, n);\n\n    cudaMemcpy(host_data, device_data, bytes, cudaMemcpyDeviceToHost);\n    cudaFree(device_data);\n}",
+  "note": "cudaMemcpyHostToDevice and cudaMemcpyDeviceToHost are opposite directions; mixing them up corrupts silently."
+ },
+ {
+  "id": "cpp/cuda/reduction-sequential-addressing",
+  "lang": "cpp",
+  "topic": "cuda",
+  "tier": 4,
+  "tags": [
+   "cuda",
+   "reduction",
+   "sequential-addressing"
+  ],
+  "code": "__global__ void reduce_sum(const float* in, float* out, int n) {\n    extern __shared__ float sdata[];\n    int tid = threadIdx.x;\n    int i = blockIdx.x * blockDim.x * 2 + tid;\n\n    sdata[tid] = (i < n ? in[i] : 0.0f) + (i + blockDim.x < n ? in[i + blockDim.x] : 0.0f);\n    __syncthreads();\n\n    for (unsigned int stride = blockDim.x / 2; stride > 0; stride >>= 1) {\n        if (tid < stride) {\n            sdata[tid] += sdata[tid + stride];\n        }\n        __syncthreads();\n    }\n\n    if (tid == 0) {\n        out[blockIdx.x] = sdata[0];\n    }\n}",
+  "note": "Sequential addressing halves the active-thread stride each round, which avoids the shared-memory bank conflicts of the naive version."
+ },
+ {
+  "id": "cpp/cuda/reduction-warp-shuffle",
+  "lang": "cpp",
+  "topic": "cuda",
+  "tier": 4,
+  "tags": [
+   "cuda",
+   "reduction",
+   "warp-shuffle",
+   "intrinsics"
+  ],
+  "code": "__inline__ __device__ float warp_reduce_sum(float val) {\n    for (int offset = 16; offset > 0; offset >>= 1) {\n        val += __shfl_down_sync(0xffffffff, val, offset);\n    }\n    return val;\n}\n\n__global__ void reduce_warp(const float* in, float* out, int n) {\n    float sum = 0.0f;\n    int i = blockIdx.x * blockDim.x + threadIdx.x;\n    if (i < n) sum = in[i];\n\n    sum = warp_reduce_sum(sum);\n\n    if (threadIdx.x % 32 == 0) {\n        atomicAdd(out, sum);\n    }\n}",
+  "note": "__shfl_down_sync exchanges registers directly between lanes, so the final warp needs no shared memory at all."
+ },
+ {
+  "id": "cpp/cuda/shared-memory-tile",
+  "lang": "cpp",
+  "topic": "cuda",
+  "tier": 3,
+  "tags": [
+   "cuda",
+   "shared-memory",
+   "syncthreads"
+  ],
+  "code": "__global__ void tile_sum(const float* in, float* out, int n) {\n    __shared__ float tile[256];\n    int tid = threadIdx.x;\n    int i = blockIdx.x * blockDim.x + tid;\n\n    tile[tid] = (i < n) ? in[i] : 0.0f;\n    __syncthreads();\n\n    for (int stride = blockDim.x / 2; stride > 0; stride >>= 1) {\n        if (tid < stride) {\n            tile[tid] += tile[tid + stride];\n        }\n        __syncthreads();\n    }\n\n    if (tid == 0) {\n        out[blockIdx.x] = tile[0];\n    }\n}",
+  "note": "__syncthreads() must be reached by every thread in the block, so it cannot sit inside a divergent branch."
+ },
+ {
+  "id": "cpp/cuda/streams-async-copy",
+  "lang": "cpp",
+  "topic": "cuda",
+  "tier": 4,
+  "tags": [
+   "cuda",
+   "streams",
+   "async",
+   "overlap"
+  ],
+  "code": "void run_overlapped(float* h_data, float* d_a, float* d_b, int n, int chunks) {\n    cudaStream_t stream_a, stream_b;\n    cudaStreamCreate(&stream_a);\n    cudaStreamCreate(&stream_b);\n\n    size_t chunk_bytes = static_cast<size_t>(n / chunks) * sizeof(float);\n    int threads = 256;\n    int blocks_per_chunk = (n / chunks + threads - 1) / threads;\n\n    for (int c = 0; c < chunks; c += 2) {\n        cudaMemcpyAsync(d_a, h_data, chunk_bytes, cudaMemcpyHostToDevice, stream_a);\n        cudaMemcpyAsync(d_b, h_data, chunk_bytes, cudaMemcpyHostToDevice, stream_b);\n    }\n\n    cudaStreamSynchronize(stream_a);\n    cudaStreamSynchronize(stream_b);\n    cudaStreamDestroy(stream_a);\n    cudaStreamDestroy(stream_b);\n}",
+  "note": "A stream orders its own operations but runs independently of other streams, which is how copy overlaps compute."
+ },
+ {
+  "id": "cpp/cuda/tiled-matrix-multiply",
+  "lang": "cpp",
+  "topic": "cuda",
+  "tier": 4,
+  "tags": [
+   "cuda",
+   "matrix-multiply",
+   "tiling",
+   "shared-memory"
+  ],
+  "code": "#define TILE 16\n\n__global__ void matmul_tiled(const float* A, const float* B, float* C, int n) {\n    __shared__ float tileA[TILE][TILE];\n    __shared__ float tileB[TILE][TILE];\n\n    int row = blockIdx.y * TILE + threadIdx.y;\n    int col = blockIdx.x * TILE + threadIdx.x;\n    float acc = 0.0f;\n\n    for (int t = 0; t < n / TILE; ++t) {\n        tileA[threadIdx.y][threadIdx.x] = A[row * n + t * TILE + threadIdx.x];\n        tileB[threadIdx.y][threadIdx.x] = B[(t * TILE + threadIdx.y) * n + col];\n        __syncthreads();\n\n        for (int k = 0; k < TILE; ++k) {\n            acc += tileA[threadIdx.y][k] * tileB[k][threadIdx.x];\n        }\n        __syncthreads();\n    }\n\n    C[row * n + col] = acc;\n}",
+  "note": "Tiling loads each element from global memory once per tile instead of once per output, which is the whole win."
+ },
+ {
+  "id": "cpp/cuda/transpose-padded",
+  "lang": "cpp",
+  "topic": "cuda",
+  "tier": 4,
+  "tags": [
+   "cuda",
+   "transpose",
+   "bank-conflicts",
+   "padding"
+  ],
+  "code": "#define TILE 32\n\n__global__ void transpose_padded(const float* in, float* out, int width, int height) {\n    __shared__ float tile[TILE][TILE + 1];\n\n    int x = blockIdx.x * TILE + threadIdx.x;\n    int y = blockIdx.y * TILE + threadIdx.y;\n\n    if (x < width && y < height) {\n        tile[threadIdx.y][threadIdx.x] = in[y * width + x];\n    }\n    __syncthreads();\n\n    int tx = blockIdx.y * TILE + threadIdx.x;\n    int ty = blockIdx.x * TILE + threadIdx.y;\n\n    if (tx < height && ty < width) {\n        out[ty * height + tx] = tile[threadIdx.x][threadIdx.y];\n    }\n}",
+  "note": "Padding each row by one element shifts the column stride so it no longer aliases the same bank."
+ },
+ {
+  "id": "cpp/cuda/unified-memory-prefetch",
+  "lang": "cpp",
+  "topic": "cuda",
+  "tier": 3,
+  "tags": [
+   "cuda",
+   "unified-memory",
+   "prefetch"
+  ],
+  "code": "__global__ void increment(int* data, int n) {\n    int i = blockIdx.x * blockDim.x + threadIdx.x;\n    if (i < n) data[i] += 1;\n}\n\nvoid run(int n) {\n    int* data = nullptr;\n    cudaMallocManaged(&data, static_cast<size_t>(n) * sizeof(int));\n\n    int device = 0;\n    cudaGetDevice(&device);\n    cudaMemPrefetchAsync(data, static_cast<size_t>(n) * sizeof(int), device);\n\n    increment<<<(n + 255) / 256, 256>>>(data, n);\n    cudaDeviceSynchronize();\n\n    cudaMemPrefetchAsync(data, static_cast<size_t>(n) * sizeof(int), cudaCpuDeviceId);\n    cudaFree(data);\n}",
+  "note": "cudaMallocManaged gives one pointer valid on both sides; prefetch hides the migration latency ahead of use."
+ }
+]

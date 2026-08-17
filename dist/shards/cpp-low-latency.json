@@ -1,0 +1,276 @@
+[
+ {
+  "id": "cpp/low-latency/alignas-padding",
+  "lang": "cpp",
+  "topic": "low-latency",
+  "tier": 3,
+  "tags": [
+   "alignas",
+   "cache-line",
+   "false-sharing"
+  ],
+  "code": "#include <atomic>\n#include <cstddef>\n\nstruct alignas(64) PaddedCounter {\n    std::atomic<long long> value{0};\n    char padding[64 - sizeof(std::atomic<long long>)]{};\n};\n\nstruct Unpadded {\n    std::atomic<long long> value{0};\n};\n\nint demo() {\n    PaddedCounter a, b;\n    Unpadded c, d;\n    a.value.fetch_add(1);\n    b.value.fetch_add(2);\n    return static_cast<int>(sizeof(PaddedCounter) == 64) + static_cast<int>(alignof(PaddedCounter) == 64)\n         + static_cast<int>(a.value.load() + b.value.load());\n}",
+  "note": "Padding a struct to the cache line size stops two threads' counters from sharing one line."
+ },
+ {
+  "id": "cpp/low-latency/aos-vs-soa",
+  "lang": "cpp",
+  "topic": "low-latency",
+  "tier": 3,
+  "tags": [
+   "data-layout",
+   "aos",
+   "soa",
+   "cache"
+  ],
+  "code": "#include <vector>\n\nstruct ParticleAoS {\n    float x{}, y{}, z{}, mass{};\n};\n\nstruct ParticlesSoA {\n    std::vector<float> x, y, z, mass;\n    explicit ParticlesSoA(std::size_t n) : x(n), y(n), z(n), mass(n) {}\n};\n\nfloat sum_x_aos(const std::vector<ParticleAoS>& ps) {\n    float total = 0;\n    for (const auto& p : ps) total += p.x;\n    return total;\n}\n\nfloat sum_x_soa(const ParticlesSoA& ps) {\n    float total = 0;\n    for (float x : ps.x) total += x;\n    return total;\n}\n\nint demo() {\n    std::vector<ParticleAoS> aos(4);\n    ParticlesSoA soa(4);\n    return static_cast<int>(sum_x_aos(aos) + sum_x_soa(soa)) + static_cast<int>(sizeof(ParticleAoS));\n}",
+  "note": "SoA gives each field its own contiguous stream, so a pass over one field touches nothing else."
+ },
+ {
+  "id": "cpp/low-latency/arena-bump-allocator",
+  "lang": "cpp",
+  "topic": "low-latency",
+  "tier": 4,
+  "tags": [
+   "allocator",
+   "arena",
+   "bump-pointer"
+  ],
+  "code": "#include <cstddef>\n#include <cstdint>\n#include <memory>\n#include <new>\n\nclass Arena {\npublic:\n    explicit Arena(std::size_t bytes) : buf_(std::make_unique<std::byte[]>(bytes)), size_(bytes) {}\n\n    void* allocate(std::size_t n, std::size_t align) {\n        auto base = reinterpret_cast<std::uintptr_t>(buf_.get()) + offset_;\n        auto aligned = (base + align - 1) & ~(align - 1);\n        std::size_t new_offset = aligned - reinterpret_cast<std::uintptr_t>(buf_.get()) + n;\n        if (new_offset > size_) throw std::bad_alloc();\n        offset_ = new_offset;\n        return reinterpret_cast<void*>(aligned);\n    }\n\n    void reset() { offset_ = 0; }\n    std::size_t used() const { return offset_; }\n\nprivate:\n    std::unique_ptr<std::byte[]> buf_;\n    std::size_t size_, offset_{0};\n};\n\nint demo() {\n    Arena arena(1024);\n    int* a = new (arena.allocate(sizeof(int), alignof(int))) int(5);\n    double* b = new (arena.allocate(sizeof(double), alignof(double))) double(2.5);\n    int result = *a + static_cast<int>(*b);\n    arena.reset();\n    return result + static_cast<int>(arena.used());\n}",
+  "note": "A bump allocator never frees individual objects; the whole arena is reclaimed in one shot."
+ },
+ {
+  "id": "cpp/low-latency/atomics-compare-exchange",
+  "lang": "cpp",
+  "topic": "low-latency",
+  "tier": 3,
+  "tags": [
+   "atomic",
+   "compare-exchange",
+   "cas-loop"
+  ],
+  "code": "#include <atomic>\n\nint fetch_max(std::atomic<int>& target, int candidate) {\n    int current = target.load(std::memory_order_relaxed);\n    while (candidate > current &&\n           !target.compare_exchange_weak(current, candidate, std::memory_order_relaxed)) {\n    }\n    return current;\n}\n\nint demo() {\n    std::atomic<int> best{5};\n    fetch_max(best, 3);\n    fetch_max(best, 12);\n    fetch_max(best, 8);\n    return best.load();\n}",
+  "note": "compare_exchange_weak can fail spuriously, which is fine because the loop just retries."
+ },
+ {
+  "id": "cpp/low-latency/atomics-memory-order",
+  "lang": "cpp",
+  "topic": "low-latency",
+  "tier": 3,
+  "tags": [
+   "atomic",
+   "memory-order",
+   "acquire-release"
+  ],
+  "code": "#include <atomic>\n#include <thread>\n\nint demo() {\n    std::atomic<int> data{0};\n    std::atomic<bool> ready{false};\n\n    std::thread producer([&] {\n        data.store(42, std::memory_order_relaxed);\n        ready.store(true, std::memory_order_release);\n    });\n\n    int seen = 0;\n    while (!ready.load(std::memory_order_acquire)) {\n    }\n    seen = data.load(std::memory_order_relaxed);\n\n    producer.join();\n\n    std::atomic<int> counter{0};\n    counter.fetch_add(1, std::memory_order_relaxed);\n    return seen + counter.load();\n}",
+  "note": "A release store paired with an acquire load is what makes the writes before the store visible after the load."
+ },
+ {
+  "id": "cpp/low-latency/benchmark-harness-skeleton",
+  "lang": "cpp",
+  "topic": "low-latency",
+  "tier": 2,
+  "tags": [
+   "benchmark",
+   "chrono",
+   "do-not-optimize"
+  ],
+  "code": "#include <chrono>\n#include <cstddef>\n\ntemplate <typename T>\nvoid do_not_optimize(const T& value) {\n    asm volatile(\"\" : : \"r,m\"(value) : \"memory\");\n}\n\ntemplate <typename F>\ndouble bench(F&& fn, int iterations) {\n    auto start = std::chrono::steady_clock::now();\n    for (int i = 0; i < iterations; ++i) {\n        auto result = fn();\n        do_not_optimize(result);\n    }\n    auto elapsed = std::chrono::steady_clock::now() - start;\n    return std::chrono::duration<double, std::nano>(elapsed).count() / iterations;\n}\n\nint demo() {\n    int x = 0;\n    double ns = bench([&] { return ++x; }, 1000);\n    return static_cast<int>(ns >= 0.0) + x;\n}",
+  "note": "A volatile sink forces the optimiser to keep the result, so the whole loop cannot be deleted."
+ },
+ {
+  "id": "cpp/low-latency/branch-hints-branchless",
+  "lang": "cpp",
+  "topic": "low-latency",
+  "tier": 3,
+  "tags": [
+   "likely-unlikely",
+   "branchless",
+   "select"
+  ],
+  "code": "int classify(int x) {\n    if (x < 0) [[unlikely]] {\n        return -1;\n    } else if (x == 0) [[unlikely]] {\n        return 0;\n    }\n    return 1;\n}\n\nint branchless_max(int a, int b) {\n    int diff = a - b;\n    int mask = diff >> 31;\n    return b + (diff & ~mask);\n}\n\nint branchless_select(bool cond, int a, int b) {\n    return b ^ ((-static_cast<int>(cond)) & (a ^ b));\n}\n\nint demo() {\n    return classify(-5) + classify(0) + classify(9)\n         + branchless_max(3, 7) + branchless_select(true, 10, 20);\n}",
+  "note": "A branchless select multiplies by a 0/1 mask instead of jumping, which keeps the pipeline full."
+ },
+ {
+  "id": "cpp/low-latency/custom-hashmap-open-addressing",
+  "lang": "cpp",
+  "topic": "low-latency",
+  "tier": 4,
+  "tags": [
+   "hashmap",
+   "open-addressing",
+   "linear-probing"
+  ],
+  "code": "#include <functional>\n#include <optional>\n#include <vector>\n\ntemplate <typename K, typename V>\nclass OpenMap {\npublic:\n    explicit OpenMap(std::size_t capacity) : slots_(capacity) {}\n\n    void insert(K key, V value) {\n        std::size_t i = probe(key);\n        if (!slots_[i].used) ++count_;\n        slots_[i] = {true, false, std::move(key), std::move(value)};\n    }\n\n    std::optional<V> get(const K& key) const {\n        std::size_t i = std::hash<K>{}(key) % slots_.size();\n        for (std::size_t n = 0; n < slots_.size(); ++n) {\n            const auto& slot = slots_[(i + n) % slots_.size()];\n            if (!slot.used && !slot.tombstone) return std::nullopt;\n            if (slot.used && slot.key == key) return slot.value;\n        }\n        return std::nullopt;\n    }\n\n    std::size_t size() const { return count_; }\n\nprivate:\n    struct Slot {\n        bool used{false}, tombstone{false};\n        K key{};\n        V value{};\n    };\n\n    std::size_t probe(const K& key) const {\n        std::size_t i = std::hash<K>{}(key) % slots_.size();\n        for (std::size_t n = 0; n < slots_.size(); ++n) {\n            std::size_t idx = (i + n) % slots_.size();\n            if (!slots_[idx].used || slots_[idx].key == key) return idx;\n        }\n        return i;\n    }\n\n    std::vector<Slot> slots_;\n    std::size_t count_{0};\n};\n\nint demo() {\n    OpenMap<int, int> m(16);\n    m.insert(1, 100);\n    m.insert(2, 200);\n    m.insert(17, 300);\n    return m.get(1).value_or(-1) + m.get(17).value_or(-1) + static_cast<int>(m.size());\n}",
+  "note": "Linear probing needs a tombstone for deletion, or a later lookup can stop searching too early."
+ },
+ {
+  "id": "cpp/low-latency/emplace-vs-push",
+  "lang": "cpp",
+  "topic": "low-latency",
+  "tier": 2,
+  "tags": [
+   "emplace-back",
+   "push-back",
+   "construction"
+  ],
+  "code": "#include <string>\n#include <vector>\n\nstruct Big {\n    std::string tag;\n    int value{};\n    Big(std::string t, int v) : tag(std::move(t)), value(v) {}\n};\n\nint demo() {\n    std::vector<Big> v;\n    v.reserve(4);\n    v.push_back(Big(\"a\", 1));\n    v.emplace_back(\"b\", 2);\n    v.emplace_back(std::string(\"c\"), 3);\n\n    std::vector<std::pair<int, int>> pairs;\n    pairs.emplace_back(1, 2);\n    pairs.push_back(std::make_pair(3, 4));\n\n    return static_cast<int>(v.size()) + v.back().value + pairs.back().second;\n}",
+  "note": "emplace_back constructs the element in place from its arguments; push_back needs a temporary first."
+ },
+ {
+  "id": "cpp/low-latency/freelist-linked",
+  "lang": "cpp",
+  "topic": "low-latency",
+  "tier": 3,
+  "tags": [
+   "freelist",
+   "intrusive-list",
+   "fixed-size"
+  ],
+  "code": "#include <cstddef>\n#include <memory>\n\ntemplate <std::size_t BlockSize, std::size_t Count>\nclass FixedFreeList {\npublic:\n    FixedFreeList() {\n        for (std::size_t i = 0; i + 1 < Count; ++i) {\n            *reinterpret_cast<void**>(&storage_[i * BlockSize]) = &storage_[(i + 1) * BlockSize];\n        }\n        *reinterpret_cast<void**>(&storage_[(Count - 1) * BlockSize]) = nullptr;\n        head_ = &storage_[0];\n    }\n\n    void* acquire() {\n        if (!head_) return nullptr;\n        void* block = head_;\n        head_ = *reinterpret_cast<void**>(head_);\n        return block;\n    }\n\n    void release(void* block) {\n        *reinterpret_cast<void**>(block) = head_;\n        head_ = block;\n    }\n\nprivate:\n    alignas(std::max_align_t) unsigned char storage_[BlockSize * Count]{};\n    void* head_{};\n};\n\nint demo() {\n    FixedFreeList<16, 4> pool;\n    void* a = pool.acquire();\n    void* b = pool.acquire();\n    pool.release(a);\n    void* c = pool.acquire();\n    return static_cast<int>(a == c) + static_cast<int>(b != nullptr);\n}",
+  "note": "An intrusive freelist stores the next pointer inside the freed block itself, so it costs zero extra memory."
+ },
+ {
+  "id": "cpp/low-latency/hot-cold-splitting",
+  "lang": "cpp",
+  "topic": "low-latency",
+  "tier": 3,
+  "tags": [
+   "data-layout",
+   "hot-cold",
+   "cache"
+  ],
+  "code": "#include <string>\n#include <vector>\n\nstruct EntityHot {\n    float x{}, y{}, vx{}, vy{};\n};\n\nstruct EntityCold {\n    std::string name;\n    std::string description;\n};\n\nclass World {\npublic:\n    int spawn(float x, float y, std::string name) {\n        hot_.push_back({x, y, 0, 0});\n        cold_.push_back({std::move(name), \"\"});\n        return static_cast<int>(hot_.size()) - 1;\n    }\n\n    void step(float dt) {\n        for (auto& e : hot_) {\n            e.x += e.vx * dt;\n            e.y += e.vy * dt;\n        }\n    }\n\nprivate:\n    std::vector<EntityHot> hot_;\n    std::vector<EntityCold> cold_;\n};\n\nint demo() {\n    World w;\n    w.spawn(0, 0, \"player\");\n    w.step(0.016f);\n    return static_cast<int>(sizeof(EntityHot));\n}",
+  "note": "Splitting rarely-touched fields into a side table keeps the hot loop's cache lines dense."
+ },
+ {
+  "id": "cpp/low-latency/inline-restrict",
+  "lang": "cpp",
+  "topic": "low-latency",
+  "tier": 3,
+  "tags": [
+   "inline",
+   "restrict",
+   "noinline"
+  ],
+  "code": "inline int square(int x) { return x * x; }\n\n[[gnu::noinline]] int uninlined_square(int x) { return x * x; }\n\nvoid axpy(int n, float a, const float* __restrict x, float* __restrict y) {\n    for (int i = 0; i < n; ++i) y[i] += a * x[i];\n}\n\nint demo() {\n    float x[4] = {1, 2, 3, 4};\n    float y[4] = {0, 0, 0, 0};\n    axpy(4, 2.0f, x, y);\n    return square(3) + uninlined_square(4) + static_cast<int>(y[3]);\n}",
+  "note": "restrict tells the compiler two pointers cannot alias, unlocking vectorisation it otherwise cannot risk."
+ },
+ {
+  "id": "cpp/low-latency/mmap-read",
+  "lang": "cpp",
+  "topic": "low-latency",
+  "tier": 4,
+  "tags": [
+   "mmap",
+   "zero-copy",
+   "posix"
+  ],
+  "code": "#include <fcntl.h>\n#include <sys/mman.h>\n#include <sys/stat.h>\n#include <unistd.h>\n#include <string_view>\n\nstruct MappedFile {\n    void* data{nullptr};\n    std::size_t size{0};\n    int fd{-1};\n\n    static MappedFile open(const char* path) {\n        MappedFile m;\n        m.fd = ::open(path, O_RDONLY);\n        if (m.fd < 0) return m;\n        struct stat st{};\n        if (fstat(m.fd, &st) != 0) return m;\n        m.size = static_cast<std::size_t>(st.st_size);\n        if (m.size > 0) {\n            m.data = mmap(nullptr, m.size, PROT_READ, MAP_PRIVATE, m.fd, 0);\n        }\n        return m;\n    }\n\n    std::string_view view() const {\n        return {static_cast<const char*>(data), size};\n    }\n\n    ~MappedFile() {\n        if (data && data != MAP_FAILED) munmap(data, size);\n        if (fd >= 0) close(fd);\n    }\n};\n\nint demo() {\n    MappedFile f = MappedFile::open(\"/etc/hostname\");\n    return static_cast<int>(f.fd >= 0);\n}",
+  "note": "mmap maps the file into the address space directly, so reading never copies through a buffer."
+ },
+ {
+  "id": "cpp/low-latency/object-pool",
+  "lang": "cpp",
+  "topic": "low-latency",
+  "tier": 3,
+  "tags": [
+   "object-pool",
+   "freelist",
+   "reuse"
+  ],
+  "code": "#include <cstddef>\n#include <memory>\n#include <vector>\n\ntemplate <typename T>\nclass Pool {\npublic:\n    explicit Pool(std::size_t n) : storage_(n) {\n        for (std::size_t i = 0; i + 1 < n; ++i) free_.push_back(&storage_[i]);\n        for (std::size_t i = 0; i < n; ++i) free_.push_back(&storage_[n - 1 - i]);\n    }\n\n    T* acquire() {\n        if (free_.empty()) return nullptr;\n        T* p = free_.back();\n        free_.pop_back();\n        return p;\n    }\n\n    void release(T* p) { free_.push_back(p); }\n\n    std::size_t available() const { return free_.size(); }\n\nprivate:\n    std::vector<T> storage_;\n    std::vector<T*> free_;\n};\n\nint demo() {\n    Pool<int> pool(4);\n    int* a = pool.acquire();\n    int* b = pool.acquire();\n    *a = 1; *b = 2;\n    pool.release(a);\n    std::size_t avail = pool.available();\n    return *b + static_cast<int>(avail);\n}",
+  "note": "A freelist reuses freed slots via an intrusive next pointer, so steady-state acquire never allocates."
+ },
+ {
+  "id": "cpp/low-latency/pmr-monotonic-buffer",
+  "lang": "cpp",
+  "topic": "low-latency",
+  "tier": 4,
+  "tags": [
+   "pmr",
+   "monotonic-buffer-resource",
+   "allocator"
+  ],
+  "code": "#include <array>\n#include <memory_resource>\n#include <vector>\n\nint demo() {\n    std::array<std::byte, 256> buffer{};\n    std::pmr::monotonic_buffer_resource resource(buffer.data(), buffer.size());\n    std::pmr::vector<int> v(&resource);\n    v.reserve(8);\n    for (int i = 0; i < 8; ++i) v.push_back(i * i);\n\n    std::pmr::vector<int> w(&resource);\n    w.push_back(100);\n\n    return v.back() + w.back() + static_cast<int>(v.get_allocator().resource() == &resource);\n}",
+  "note": "A pmr container's allocator is a runtime property, not a template parameter, so the type stays simple."
+ },
+ {
+  "id": "cpp/low-latency/reserve-and-sbo",
+  "lang": "cpp",
+  "topic": "low-latency",
+  "tier": 2,
+  "tags": [
+   "allocation",
+   "reserve",
+   "small-buffer-optimization"
+  ],
+  "code": "#include <string>\n#include <vector>\n\nstd::vector<int> build_reserved(int n) {\n    std::vector<int> out;\n    out.reserve(static_cast<std::size_t>(n));\n    for (int i = 0; i < n; ++i) out.push_back(i);\n    return out;\n}\n\nint demo() {\n    auto v = build_reserved(1000);\n    std::string small = \"tiny\";\n    std::string big(64, 'x');\n    return static_cast<int>(v.capacity() >= v.size()) + static_cast<int>(small.capacity() >= small.size())\n         + static_cast<int>(big.size());\n}",
+  "note": "reserve pre-pays every growth; a short std::string never touches the heap at all thanks to SBO."
+ },
+ {
+  "id": "cpp/low-latency/seqlock",
+  "lang": "cpp",
+  "topic": "low-latency",
+  "tier": 4,
+  "tags": [
+   "seqlock",
+   "lock-free",
+   "reader-writer"
+  ],
+  "code": "#include <atomic>\n\ntemplate <typename T>\nclass SeqLock {\npublic:\n    void write(const T& value) {\n        seq_.fetch_add(1, std::memory_order_acq_rel);\n        value_ = value;\n        seq_.fetch_add(1, std::memory_order_release);\n    }\n\n    T read() const {\n        T copy;\n        unsigned before, after;\n        do {\n            before = seq_.load(std::memory_order_acquire);\n            copy = value_;\n            after = seq_.load(std::memory_order_acquire);\n        } while (before != after || (before & 1));\n        return copy;\n    }\n\nprivate:\n    std::atomic<unsigned> seq_{0};\n    T value_{};\n};\n\nint demo() {\n    SeqLock<int> lock;\n    lock.write(41);\n    int a = lock.read();\n    lock.write(a + 1);\n    return lock.read();\n}",
+  "note": "An odd sequence number means a writer is mid-update; the reader retries whenever it sees one."
+ },
+ {
+  "id": "cpp/low-latency/simd-basic-add",
+  "lang": "cpp",
+  "topic": "low-latency",
+  "tier": 4,
+  "tags": [
+   "simd",
+   "intrinsics",
+   "sse"
+  ],
+  "code": "#include <xmmintrin.h>\n\nvoid add_arrays(const float* a, const float* b, float* out, int n) {\n    int i = 0;\n    for (; i + 4 <= n; i += 4) {\n        __m128 va = _mm_loadu_ps(a + i);\n        __m128 vb = _mm_loadu_ps(b + i);\n        _mm_storeu_ps(out + i, _mm_add_ps(va, vb));\n    }\n    for (; i < n; ++i) out[i] = a[i] + b[i];\n}\n\nfloat horizontal_sum(__m128 v) {\n    __m128 shuf = _mm_shuffle_ps(v, v, _MM_SHUFFLE(2, 3, 0, 1));\n    __m128 sums = _mm_add_ps(v, shuf);\n    shuf = _mm_movehl_ps(shuf, sums);\n    sums = _mm_add_ss(sums, shuf);\n    return _mm_cvtss_f32(sums);\n}\n\nint demo() {\n    float a[6] = {1, 2, 3, 4, 5, 6};\n    float b[6] = {1, 1, 1, 1, 1, 1};\n    float out[6]{};\n    add_arrays(a, b, out, 6);\n    __m128 v = _mm_setr_ps(1, 2, 3, 4);\n    return static_cast<int>(out[5]) + static_cast<int>(horizontal_sum(v));\n}",
+  "note": "_mm_loadu_ps tolerates unaligned addresses; _mm_load_ps demands 16-byte alignment or it faults."
+ },
+ {
+  "id": "cpp/low-latency/simd-mask-select",
+  "lang": "cpp",
+  "topic": "low-latency",
+  "tier": 4,
+  "tags": [
+   "simd",
+   "mask",
+   "select"
+  ],
+  "code": "#include <xmmintrin.h>\n\nvoid clamp_positive(float* data, int n) {\n    __m128 zero = _mm_setzero_ps();\n    int i = 0;\n    for (; i + 4 <= n; i += 4) {\n        __m128 v = _mm_loadu_ps(data + i);\n        __m128 mask = _mm_cmpgt_ps(v, zero);\n        __m128 result = _mm_or_ps(_mm_and_ps(mask, v), _mm_andnot_ps(mask, zero));\n        _mm_storeu_ps(data + i, result);\n    }\n}\n\nint demo() {\n    float data[4] = {-1.0f, 2.0f, -3.0f, 4.0f};\n    clamp_positive(data, 4);\n    return static_cast<int>(data[0] + data[1] + data[2] + data[3]);\n}",
+  "note": "_mm_and_ps / _mm_andnot_ps combine a comparison mask with two operands to select without branching."
+ },
+ {
+  "id": "cpp/low-latency/spsc-ring-buffer",
+  "lang": "cpp",
+  "topic": "low-latency",
+  "tier": 4,
+  "tags": [
+   "spsc",
+   "ring-buffer",
+   "lock-free"
+  ],
+  "code": "#include <atomic>\n#include <cstddef>\n#include <optional>\n#include <vector>\n\ntemplate <typename T>\nclass SpscRing {\npublic:\n    explicit SpscRing(std::size_t capacity_pow2) : mask_(capacity_pow2 - 1), buf_(capacity_pow2) {}\n\n    bool push(T value) {\n        std::size_t head = head_.load(std::memory_order_relaxed);\n        std::size_t next = (head + 1) & mask_;\n        if (next == tail_.load(std::memory_order_acquire)) return false;\n        buf_[head] = std::move(value);\n        head_.store(next, std::memory_order_release);\n        return true;\n    }\n\n    std::optional<T> pop() {\n        std::size_t tail = tail_.load(std::memory_order_relaxed);\n        if (tail == head_.load(std::memory_order_acquire)) return std::nullopt;\n        T value = std::move(buf_[tail]);\n        tail_.store((tail + 1) & mask_, std::memory_order_release);\n        return value;\n    }\n\nprivate:\n    std::size_t mask_;\n    std::vector<T> buf_;\n    std::atomic<std::size_t> head_{0}, tail_{0};\n};\n\nint demo() {\n    SpscRing<int> ring(4);\n    ring.push(1);\n    ring.push(2);\n    int total = *ring.pop() + *ring.pop();\n    return total + static_cast<int>(ring.pop().has_value());\n}",
+  "note": "A power-of-two capacity turns the wraparound modulo into a single AND against a mask."
+ },
+ {
+  "id": "cpp/low-latency/zero-copy-string-view",
+  "lang": "cpp",
+  "topic": "low-latency",
+  "tier": 2,
+  "tags": [
+   "string-view",
+   "zero-copy",
+   "parsing"
+  ],
+  "code": "#include <string_view>\n#include <vector>\n\nstd::vector<std::string_view> split(std::string_view text, char sep) {\n    std::vector<std::string_view> out;\n    std::size_t start = 0;\n    for (std::size_t i = 0; i <= text.size(); ++i) {\n        if (i == text.size() || text[i] == sep) {\n            out.push_back(text.substr(start, i - start));\n            start = i + 1;\n        }\n    }\n    return out;\n}\n\nint demo() {\n    std::string_view csv = \"10,20,30,40\";\n    auto parts = split(csv, ',');\n    return static_cast<int>(parts.size()) + static_cast<int>(parts[0].data() == csv.data());\n}",
+  "note": "Slicing with string_view touches no heap; only converting to std::string ever allocates."
+ }
+]

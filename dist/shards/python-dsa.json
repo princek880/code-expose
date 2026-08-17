@@ -1,0 +1,1166 @@
+[
+ {
+  "id": "python/dsa/backtracking-combination-sum",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "backtracking",
+   "combinations",
+   "pruning"
+  ],
+  "code": "def combination_sum(candidates, target):\n    out, path = [], []\n    candidates = sorted(candidates)\n\n    def go(start, remaining):\n        if remaining == 0:\n            out.append(path[:])\n            return\n        for i in range(start, len(candidates)):\n            c = candidates[i]\n            if c > remaining:\n                break\n            path.append(c)\n            go(i, remaining - c)\n            path.pop()\n\n    go(0, target)\n    return out\n\nprint(combination_sum([2, 3, 6, 7], 7))",
+  "note": "Passing the start index forward is what stops the same combination appearing reordered."
+ },
+ {
+  "id": "python/dsa/backtracking-n-queens",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "backtracking",
+   "n-queens",
+   "pruning"
+  ],
+  "code": "def n_queens(n):\n    out, placement = [], []\n    cols, diag, anti = set(), set(), set()\n\n    def place(row):\n        if row == n:\n            out.append(placement[:])\n            return\n        for col in range(n):\n            if col in cols or row - col in diag or row + col in anti:\n                continue\n            cols.add(col)\n            diag.add(row - col)\n            anti.add(row + col)\n            placement.append(col)\n            place(row + 1)\n            placement.pop()\n            cols.discard(col)\n            diag.discard(row - col)\n            anti.discard(row + col)\n\n    place(0)\n    return out\n\nprint(len(n_queens(6)), n_queens(4))",
+  "note": "row - col and row + col identify the two diagonals, which makes each check O(1)."
+ },
+ {
+  "id": "python/dsa/backtracking-permutations",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "backtracking",
+   "permutations"
+  ],
+  "code": "def permutations(xs):\n    out = []\n\n    def go(k):\n        if k == len(xs):\n            out.append(xs[:])\n            return\n        for i in range(k, len(xs)):\n            xs[k], xs[i] = xs[i], xs[k]\n            go(k + 1)\n            xs[k], xs[i] = xs[i], xs[k]\n\n    go(0)\n    return out\n\ndef permutations_unique(xs):\n    out, used, path = [], [False] * len(xs), []\n    xs = sorted(xs)\n\n    def go():\n        if len(path) == len(xs):\n            out.append(path[:])\n            return\n        for i, x in enumerate(xs):\n            if used[i] or (i and x == xs[i - 1] and not used[i - 1]):\n                continue\n            used[i] = True\n            path.append(x)\n            go()\n            path.pop()\n            used[i] = False\n\n    go()\n    return out\n\nprint(len(permutations([1, 2, 3])), permutations_unique([1, 1, 2]))",
+  "note": "Swapping in place needs no visited set, and it yields each permutation exactly once."
+ },
+ {
+  "id": "python/dsa/backtracking-subsets",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "backtracking",
+   "subsets",
+   "bitmask"
+  ],
+  "code": "def subsets(xs):\n    out, path = [], []\n\n    def go(i):\n        if i == len(xs):\n            out.append(path[:])\n            return\n        go(i + 1)\n        path.append(xs[i])\n        go(i + 1)\n        path.pop()\n\n    go(0)\n    return out\n\ndef subsets_bitmask(xs):\n    n = len(xs)\n    return [[xs[i] for i in range(n) if mask >> i & 1] for mask in range(1 << n)]\n\nprint(len(subsets([1, 2, 3])), sorted(map(tuple, subsets_bitmask([1, 2]))))",
+  "note": "The include/exclude recursion and the bitmask loop enumerate the same 2**n sets."
+ },
+ {
+  "id": "python/dsa/backtracking-sudoku",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 4,
+  "tags": [
+   "backtracking",
+   "sudoku",
+   "constraint"
+  ],
+  "code": "def legal(board, r, c, v):\n    if any(board[r][x] == v for x in range(9)):\n        return False\n    if any(board[x][c] == v for x in range(9)):\n        return False\n    br, bc = 3 * (r // 3), 3 * (c // 3)\n    return all(board[br + i][bc + j] != v for i in range(3) for j in range(3))\n\ndef solve(board):\n    for r in range(9):\n        for c in range(9):\n            if board[r][c]:\n                continue\n            for v in range(1, 10):\n                if legal(board, r, c, v):\n                    board[r][c] = v\n                    if solve(board):\n                        return True\n                    board[r][c] = 0\n            return False\n    return True\n\ngrid = [[0] * 9 for _ in range(9)]\nprint(solve(grid), grid[0])",
+  "note": "Return on the first blank cell: recursion handles the rest, so no outer progress state."
+ },
+ {
+  "id": "python/dsa/backtracking-word-search",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "backtracking",
+   "grid",
+   "dfs"
+  ],
+  "code": "def exists(board, word):\n    rows, cols = len(board), len(board[0])\n\n    def walk(r, c, i):\n        if i == len(word):\n            return True\n        if not (0 <= r < rows and 0 <= c < cols) or board[r][c] != word[i]:\n            return False\n        board[r][c] = \"#\"\n        found = any(\n            walk(r + dr, c + dc, i + 1)\n            for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1))\n        )\n        board[r][c] = word[i]\n        return found\n\n    return any(walk(r, c, 0) for r in range(rows) for c in range(cols))\n\ngrid = [list(\"ABCE\"), list(\"SFCS\"), list(\"ADEE\")]\nprint(exists(grid, \"ABCCED\"), exists(grid, \"ABCB\"))",
+  "note": "Overwriting the cell marks it visited and restoring it on the way out is the undo."
+ },
+ {
+  "id": "python/dsa/binary-search",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "binary-search",
+   "invariant"
+  ],
+  "code": "def search(xs, target):\n    lo, hi = 0, len(xs)\n    while lo < hi:\n        mid = (lo + hi) // 2\n        if xs[mid] == target:\n            return mid\n        if xs[mid] < target:\n            lo = mid + 1\n        else:\n            hi = mid\n    return -1\n\nxs = [1, 3, 5, 7, 9, 11]\nprint(search(xs, 7), search(xs, 8))",
+  "note": "Half-open [lo, hi) with lo = mid + 1 is the variant that cannot loop forever."
+ },
+ {
+  "id": "python/dsa/binary-search-bounds",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "binary-search",
+   "lower-bound"
+  ],
+  "code": "def lower_bound(xs, target):\n    lo, hi = 0, len(xs)\n    while lo < hi:\n        mid = (lo + hi) // 2\n        if xs[mid] < target:\n            lo = mid + 1\n        else:\n            hi = mid\n    return lo\n\ndef upper_bound(xs, target):\n    lo, hi = 0, len(xs)\n    while lo < hi:\n        mid = (lo + hi) // 2\n        if xs[mid] <= target:\n            lo = mid + 1\n        else:\n            hi = mid\n    return lo\n\nxs = [1, 2, 2, 2, 5]\nprint(lower_bound(xs, 2), upper_bound(xs, 2), upper_bound(xs, 2) - lower_bound(xs, 2))",
+  "note": "lower_bound and upper_bound differ by one character: < versus <=."
+ },
+ {
+  "id": "python/dsa/binary-search-on-answer",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "binary-search",
+   "feasibility"
+  ],
+  "code": "def min_capacity(weights, days):\n    def feasible(cap):\n        need, cur = 1, 0\n        for w in weights:\n            if cur + w > cap:\n                need, cur = need + 1, 0\n            cur += w\n        return need <= days\n\n    lo, hi = max(weights), sum(weights)\n    while lo < hi:\n        mid = (lo + hi) // 2\n        if feasible(mid):\n            hi = mid\n        else:\n            lo = mid + 1\n    return lo\n\nprint(min_capacity([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 5))",
+  "note": "Search the answer space when the predicate is monotone: infeasible then feasible."
+ },
+ {
+  "id": "python/dsa/bisect-module",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "bisect",
+   "stdlib"
+  ],
+  "code": "from bisect import bisect_left, bisect_right, insort, insort_left\n\nxs = [1, 3, 3, 7]\nprint(bisect_left(xs, 3), bisect_right(xs, 3), bisect_left(xs, 4))\ninsort(xs, 5)\ninsort_left(xs, 0)\nprint(xs)\n\nrows = [(\"a\", 1), (\"b\", 4), (\"c\", 9)]\ni = bisect_left(rows, 4, key=lambda r: r[1])\nprint(rows[i], xs[bisect_left(xs, 3):bisect_right(xs, 3)])",
+  "note": "The key= parameter means you never have to build a parallel array of keys."
+ },
+ {
+  "id": "python/dsa/bst-delete",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "bst",
+   "delete",
+   "successor"
+  ],
+  "code": "class T:\n    def __init__(self, val, left=None, right=None):\n        self.val, self.left, self.right = val, left, right\n\ndef delete(node, key):\n    if node is None:\n        return None\n    if key < node.val:\n        node.left = delete(node.left, key)\n    elif key > node.val:\n        node.right = delete(node.right, key)\n    else:\n        if node.left is None:\n            return node.right\n        if node.right is None:\n            return node.left\n        succ = node.right\n        while succ.left:\n            succ = succ.left\n        node.val = succ.val\n        node.right = delete(node.right, succ.val)\n    return node\n\ndef inorder(n):\n    return inorder(n.left) + [n.val] + inorder(n.right) if n else []\n\nroot = T(5, T(3, T(1), T(4)), T(8, T(7)))\nprint(inorder(delete(root, 3)), inorder(delete(root, 8)))",
+  "note": "The two-child case copies the in-order successor up, then deletes it from the right subtree."
+ },
+ {
+  "id": "python/dsa/bst-insert-search",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "bst",
+   "insert",
+   "search"
+  ],
+  "code": "class T:\n    def __init__(self, val, left=None, right=None):\n        self.val, self.left, self.right = val, left, right\n\ndef insert(node, key):\n    if node is None:\n        return T(key)\n    if key < node.val:\n        node.left = insert(node.left, key)\n    elif key > node.val:\n        node.right = insert(node.right, key)\n    return node\n\ndef search(node, key):\n    while node and node.val != key:\n        node = node.left if key < node.val else node.right\n    return node\n\nroot = None\nfor k in (5, 3, 8, 1, 4, 7):\n    root = insert(root, k)\nprint(search(root, 4).val, search(root, 6))",
+  "note": "Returning the subtree root from insert is what lets the caller reattach it in one line."
+ },
+ {
+  "id": "python/dsa/bst-validate",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "bst",
+   "validate",
+   "bounds"
+  ],
+  "code": "class T:\n    def __init__(self, val, left=None, right=None):\n        self.val, self.left, self.right = val, left, right\n\ndef valid(node, lo=float(\"-inf\"), hi=float(\"inf\")):\n    if node is None:\n        return True\n    if not lo < node.val < hi:\n        return False\n    return valid(node.left, lo, node.val) and valid(node.right, node.val, hi)\n\ngood = T(5, T(3, T(1), T(4)), T(8))\nbad = T(5, T(3, T(1), T(6)), T(8))\nprint(valid(good), valid(bad))",
+  "note": "Checking only parent against child is the classic wrong answer; carry the bounds down."
+ },
+ {
+  "id": "python/dsa/counting-sort",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "counting-sort",
+   "stable"
+  ],
+  "code": "def counting_sort(xs, k):\n    counts = [0] * (k + 1)\n    for x in xs:\n        counts[x] += 1\n    for i in range(1, k + 1):\n        counts[i] += counts[i - 1]\n    out = [0] * len(xs)\n    for x in reversed(xs):\n        counts[x] -= 1\n        out[counts[x]] = x\n    return out\n\nprint(counting_sort([4, 1, 3, 1, 4, 0, 2], 4))",
+  "note": "Walking the input in reverse over the cumulative counts is what preserves stability."
+ },
+ {
+  "id": "python/dsa/difference-array",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "difference-array",
+   "range-update"
+  ],
+  "code": "def apply_ranges(n, updates):\n    diff = [0] * (n + 1)\n    for lo, hi, delta in updates:\n        diff[lo] += delta\n        diff[hi + 1] -= delta\n    out, running = [], 0\n    for i in range(n):\n        running += diff[i]\n        out.append(running)\n    return out\n\nprint(apply_ranges(6, [(0, 2, 5), (1, 4, -2), (3, 5, 1)]))",
+  "note": "Range updates become two point writes; one prefix pass at the end materialises them."
+ },
+ {
+  "id": "python/dsa/dp-1d-stairs-robber",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "dp",
+   "1d",
+   "rolling"
+  ],
+  "code": "def climb(n):\n    a, b = 1, 1\n    for _ in range(n - 1):\n        a, b = b, a + b\n    return b\n\ndef rob(nums):\n    take, skip = 0, 0\n    for x in nums:\n        take, skip = skip + x, max(skip, take)\n    return max(take, skip)\n\ndef rob_circular(nums):\n    if len(nums) == 1:\n        return nums[0]\n    return max(rob(nums[1:]), rob(nums[:-1]))\n\nprint(climb(10), rob([2, 7, 9, 3, 1]), rob_circular([2, 3, 2]))",
+  "note": "Both recurrences look back exactly two steps, so two scalars replace the whole table."
+ },
+ {
+  "id": "python/dsa/dp-bitmask",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 4,
+  "tags": [
+   "dp",
+   "bitmask",
+   "assignment"
+  ],
+  "code": "from functools import lru_cache\n\ndef min_assignment(cost):\n    n = len(cost)\n\n    @lru_cache(maxsize=None)\n    def go(i, used):\n        if i == n:\n            return 0\n        return min(\n            cost[i][j] + go(i + 1, used | (1 << j))\n            for j in range(n)\n            if not used & (1 << j)\n        )\n\n    return go(0, 0)\n\nprint(min_assignment([[9, 2, 7], [6, 4, 3], [5, 8, 1]]))\nprint(bin(0b1011 | 1 << 2), (0b1011 & -0b1011).bit_length() - 1)",
+  "note": "The mask is the set of used columns, so the state count is 2**n, not n!."
+ },
+ {
+  "id": "python/dsa/dp-coin-change",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "dp",
+   "coin-change"
+  ],
+  "code": "def fewest_coins(coins, amount):\n    INF = amount + 1\n    dp = [0] + [INF] * amount\n    for a in range(1, amount + 1):\n        for c in coins:\n            if c <= a:\n                dp[a] = min(dp[a], dp[a - c] + 1)\n    return dp[amount] if dp[amount] <= amount else -1\n\ndef count_combinations(coins, amount):\n    dp = [1] + [0] * amount\n    for c in coins:\n        for a in range(c, amount + 1):\n            dp[a] += dp[a - c]\n    return dp[amount]\n\nprint(fewest_coins([1, 5, 6, 9], 11), count_combinations([1, 2, 5], 5))",
+  "note": "Coins outside, amount inside counts combinations; swapping the loops counts permutations."
+ },
+ {
+  "id": "python/dsa/dp-digit",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 4,
+  "tags": [
+   "dp",
+   "digit-dp",
+   "tight"
+  ],
+  "code": "from functools import lru_cache\n\ndef count_with_digit_sum(n, target):\n    digits = tuple(int(c) for c in str(n))\n\n    @lru_cache(maxsize=None)\n    def go(i, total, tight):\n        if i == len(digits):\n            return int(total == target)\n        limit = digits[i] if tight else 9\n        return sum(\n            go(i + 1, total + d, tight and d == limit)\n            for d in range(limit + 1)\n            if total + d <= target\n        )\n\n    return go(0, 0, True)\n\nprint(count_with_digit_sum(100, 5), count_with_digit_sum(9999, 36))",
+  "note": "The tight flag says the prefix still equals N's prefix, which caps the next digit."
+ },
+ {
+  "id": "python/dsa/dp-edit-distance",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "dp",
+   "edit-distance",
+   "levenshtein"
+  ],
+  "code": "def edit_distance(a, b):\n    prev = list(range(len(b) + 1))\n    for i in range(1, len(a) + 1):\n        cur = [i] + [0] * len(b)\n        for j in range(1, len(b) + 1):\n            cost = 0 if a[i - 1] == b[j - 1] else 1\n            cur[j] = min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost)\n        prev = cur\n    return prev[-1]\n\nprint(edit_distance(\"kitten\", \"sitting\"), edit_distance(\"\", \"abc\"), edit_distance(\"same\", \"same\"))",
+  "note": "The three neighbours are delete, insert and replace, in that order of the min."
+ },
+ {
+  "id": "python/dsa/dp-knapsack-01",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "dp",
+   "knapsack",
+   "0-1"
+  ],
+  "code": "def knapsack(weights, values, cap):\n    dp = [0] * (cap + 1)\n    for w, v in zip(weights, values):\n        for c in range(cap, w - 1, -1):\n            dp[c] = max(dp[c], dp[c - w] + v)\n    return dp[cap]\n\ndef knapsack_items(weights, values, cap):\n    n = len(weights)\n    dp = [[0] * (cap + 1) for _ in range(n + 1)]\n    for i in range(1, n + 1):\n        for c in range(cap + 1):\n            dp[i][c] = dp[i - 1][c]\n            if weights[i - 1] <= c:\n                dp[i][c] = max(dp[i][c], dp[i - 1][c - weights[i - 1]] + values[i - 1])\n    picked, c = [], cap\n    for i in range(n, 0, -1):\n        if dp[i][c] != dp[i - 1][c]:\n            picked.append(i - 1)\n            c -= weights[i - 1]\n    return dp[n][cap], picked[::-1]\n\nprint(knapsack([1, 3, 4, 5], [1, 4, 5, 7], 7), knapsack_items([1, 3, 4, 5], [1, 4, 5, 7], 7))",
+  "note": "Iterate the capacity downward, or an item gets reused inside the same round."
+ },
+ {
+  "id": "python/dsa/dp-knapsack-unbounded",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "dp",
+   "knapsack",
+   "unbounded"
+  ],
+  "code": "def unbounded(weights, values, cap):\n    dp = [0] * (cap + 1)\n    for c in range(1, cap + 1):\n        for w, v in zip(weights, values):\n            if w <= c:\n                dp[c] = max(dp[c], dp[c - w] + v)\n    return dp[cap]\n\ndef rod_cutting(prices):\n    n = len(prices)\n    dp = [0] * (n + 1)\n    for length in range(1, n + 1):\n        dp[length] = max(prices[k - 1] + dp[length - k] for k in range(1, length + 1))\n    return dp[n]\n\nprint(unbounded([2, 3, 4], [3, 4, 5], 8), rod_cutting([1, 5, 8, 9, 10]))",
+  "note": "Forward capacity iteration is exactly what allows an item to be taken again."
+ },
+ {
+  "id": "python/dsa/dp-lcs",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "dp",
+   "lcs",
+   "2d"
+  ],
+  "code": "def lcs_len(a, b):\n    dp = [[0] * (len(b) + 1) for _ in range(len(a) + 1)]\n    for i in range(1, len(a) + 1):\n        for j in range(1, len(b) + 1):\n            if a[i - 1] == b[j - 1]:\n                dp[i][j] = dp[i - 1][j - 1] + 1\n            else:\n                dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])\n    return dp, dp[-1][-1]\n\ndef lcs_string(a, b):\n    dp, _ = lcs_len(a, b)\n    i, j, out = len(a), len(b), []\n    while i and j:\n        if a[i - 1] == b[j - 1]:\n            out.append(a[i - 1])\n            i, j = i - 1, j - 1\n        elif dp[i - 1][j] >= dp[i][j - 1]:\n            i -= 1\n        else:\n            j -= 1\n    return \"\".join(reversed(out))\n\nprint(lcs_len(\"AGGTAB\", \"GXTXAYB\")[1], lcs_string(\"AGGTAB\", \"GXTXAYB\"))",
+  "note": "The +1 diagonal step is the match case; everything else is the max of two neighbours."
+ },
+ {
+  "id": "python/dsa/dp-lis-patience",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "dp",
+   "lis",
+   "patience",
+   "bisect"
+  ],
+  "code": "from bisect import bisect_left, bisect_right\n\ndef lis_len(xs):\n    tails = []\n    for x in xs:\n        i = bisect_left(tails, x)\n        if i == len(tails):\n            tails.append(x)\n        else:\n            tails[i] = x\n    return len(tails)\n\ndef lnds_len(xs):\n    tails = []\n    for x in xs:\n        i = bisect_right(tails, x)\n        if i == len(tails):\n            tails.append(x)\n        else:\n            tails[i] = x\n    return len(tails)\n\nprint(lis_len([10, 9, 2, 5, 3, 7, 101, 18]), lnds_len([1, 1, 2, 2, 3]))",
+  "note": "tails[i] is the smallest tail of any increasing run of length i+1, so it stays sorted."
+ },
+ {
+  "id": "python/dsa/dp-lis-quadratic",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "dp",
+   "lis"
+  ],
+  "code": "def lis(xs):\n    if not xs:\n        return 0, []\n    dp = [1] * len(xs)\n    prev = [-1] * len(xs)\n    for i in range(len(xs)):\n        for j in range(i):\n            if xs[j] < xs[i] and dp[j] + 1 > dp[i]:\n                dp[i], prev[i] = dp[j] + 1, j\n    best = max(range(len(xs)), key=lambda i: dp[i])\n    seq, k = [], best\n    while k != -1:\n        seq.append(xs[k])\n        k = prev[k]\n    return dp[best], seq[::-1]\n\nprint(lis([10, 9, 2, 5, 3, 7, 101, 18]))",
+  "note": "dp[i] is the best run ending exactly at i, which is why the answer is a max over all i."
+ },
+ {
+  "id": "python/dsa/dp-matrix-chain",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 4,
+  "tags": [
+   "dp",
+   "matrix-chain",
+   "interval"
+  ],
+  "code": "def matrix_chain(dims):\n    n = len(dims) - 1\n    dp = [[0] * n for _ in range(n)]\n    split = [[0] * n for _ in range(n)]\n    for length in range(2, n + 1):\n        for i in range(n - length + 1):\n            j = i + length - 1\n            dp[i][j] = min(\n                (dp[i][k] + dp[k + 1][j] + dims[i] * dims[k + 1] * dims[j + 1], k)\n                for k in range(i, j)\n            )[0]\n    return dp[0][n - 1]\n\nprint(matrix_chain([10, 30, 5, 60]), matrix_chain([40, 20, 30, 10, 30]))",
+  "note": "Interval DP fills by increasing length, so every sub-interval is ready when needed."
+ },
+ {
+  "id": "python/dsa/dp-on-trees",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "dp",
+   "tree",
+   "rerooting"
+  ],
+  "code": "class T:\n    def __init__(self, val, left=None, right=None):\n        self.val, self.left, self.right = val, left, right\n\ndef rob_tree(node):\n    if node is None:\n        return 0, 0\n    lt, ls = rob_tree(node.left)\n    rt, rs = rob_tree(node.right)\n    take = node.val + ls + rs\n    skip = max(lt, ls) + max(rt, rs)\n    return take, skip\n\nroot = T(3, T(2, None, T(3)), T(3, None, T(1)))\nprint(max(rob_tree(root)))",
+  "note": "Return both states from every node; the parent picks whichever one it is allowed to use."
+ },
+ {
+  "id": "python/dsa/dp-partition-bitset",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "dp",
+   "partition",
+   "bitset"
+  ],
+  "code": "def can_partition(xs):\n    total = sum(xs)\n    if total % 2:\n        return False\n    reachable = 1\n    for x in xs:\n        reachable |= reachable << x\n    return bool(reachable >> (total // 2) & 1)\n\ndef min_difference(xs):\n    total = sum(xs)\n    reachable = 1\n    for x in xs:\n        reachable |= reachable << x\n    half = total // 2\n    best = max(s for s in range(half + 1) if reachable >> s & 1)\n    return total - 2 * best\n\nprint(can_partition([1, 5, 11, 5]), can_partition([1, 2, 5]), min_difference([3, 1, 4, 2, 2]))",
+  "note": "A Python int is an arbitrary-width bitset, so the whole subset-sum table is one shift."
+ },
+ {
+  "id": "python/dsa/fenwick-tree",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "fenwick",
+   "bit",
+   "prefix-sum"
+  ],
+  "code": "class BIT:\n    def __init__(self, n):\n        self.n = n\n        self.t = [0] * (n + 1)\n\n    def add(self, i, delta):\n        i += 1\n        while i <= self.n:\n            self.t[i] += delta\n            i += i & -i\n\n    def prefix(self, i):\n        total, i = 0, i + 1\n        while i > 0:\n            total += self.t[i]\n            i -= i & -i\n        return total\n\n    def range_sum(self, lo, hi):\n        return self.prefix(hi) - (self.prefix(lo - 1) if lo else 0)\n\nb = BIT(8)\nfor i, v in enumerate([1, 2, 3, 4, 5, 6, 7, 8]):\n    b.add(i, v)\nprint(b.prefix(3), b.range_sum(2, 5))",
+  "note": "i & -i isolates the lowest set bit, which is the span of the node at index i."
+ },
+ {
+  "id": "python/dsa/graph-bellman-ford",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "graph",
+   "bellman-ford",
+   "negative-weights"
+  ],
+  "code": "def bellman_ford(n, edges, src):\n    dist = [float(\"inf\")] * n\n    dist[src] = 0\n    for _ in range(n - 1):\n        changed = False\n        for u, v, w in edges:\n            if dist[u] + w < dist[v]:\n                dist[v] = dist[u] + w\n                changed = True\n        if not changed:\n            break\n    for u, v, w in edges:\n        if dist[u] + w < dist[v]:\n            return None\n    return dist\n\nedges = [(0, 1, 4), (0, 2, 5), (1, 2, -3), (2, 3, 4)]\nprint(bellman_ford(4, edges, 0))\nprint(bellman_ford(2, [(0, 1, 1), (1, 0, -3)], 0))",
+  "note": "n-1 rounds suffice; a change on round n means a reachable negative cycle."
+ },
+ {
+  "id": "python/dsa/graph-bfs-shortest",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "graph",
+   "bfs",
+   "shortest-path"
+  ],
+  "code": "from collections import deque\n\ndef shortest(graph, src, dst):\n    prev, q = {src: None}, deque([src])\n    while q:\n        u = q.popleft()\n        if u == dst:\n            break\n        for v in graph.get(u, ()):\n            if v not in prev:\n                prev[v] = u\n                q.append(v)\n    if dst not in prev:\n        return None\n    path, node = [], dst\n    while node is not None:\n        path.append(node)\n        node = prev[node]\n    return path[::-1]\n\ng = {0: [1, 2], 1: [3], 2: [3], 3: [4], 4: []}\nprint(shortest(g, 0, 4), shortest(g, 4, 0))",
+  "note": "BFS gives shortest paths only when every edge weight is equal."
+ },
+ {
+  "id": "python/dsa/graph-bipartite",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "graph",
+   "bipartite",
+   "coloring"
+  ],
+  "code": "from collections import deque\n\ndef bipartite(graph):\n    color = {}\n    for start in graph:\n        if start in color:\n            continue\n        color[start] = 0\n        q = deque([start])\n        while q:\n            u = q.popleft()\n            for v in graph[u]:\n                if v not in color:\n                    color[v] = color[u] ^ 1\n                    q.append(v)\n                elif color[v] == color[u]:\n                    return None\n    return color\n\nprint(bipartite({0: [1, 3], 1: [0, 2], 2: [1, 3], 3: [0, 2]}))\nprint(bipartite({0: [1, 2], 1: [0, 2], 2: [0, 1]}))",
+  "note": "Two-colour by BFS; an edge to an equally coloured neighbour proves an odd cycle."
+ },
+ {
+  "id": "python/dsa/graph-build-adjacency",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "graph",
+   "adjacency"
+  ],
+  "code": "from collections import defaultdict\n\nedges = [(0, 1), (0, 2), (1, 3), (2, 3), (3, 4)]\n\nundirected = defaultdict(list)\nfor u, v in edges:\n    undirected[u].append(v)\n    undirected[v].append(u)\n\ndirected = defaultdict(list)\nweighted = defaultdict(list)\nfor i, (u, v) in enumerate(edges):\n    directed[u].append(v)\n    weighted[u].append((v, i + 1))\n\nn = 5\nmatrix = [[0] * n for _ in range(n)]\nfor u, v in edges:\n    matrix[u][v] = matrix[v][u] = 1\nprint(dict(undirected)[3], dict(weighted)[0], matrix[0])",
+  "note": "Build both directions for an undirected graph, or half your edges silently vanish."
+ },
+ {
+  "id": "python/dsa/graph-cycle-directed",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "graph",
+   "cycle",
+   "dfs"
+  ],
+  "code": "def has_cycle(graph):\n    state = {}\n\n    def visit(u):\n        state[u] = 1\n        for v in graph.get(u, ()):\n            if state.get(v) == 1:\n                return True\n            if state.get(v) is None and visit(v):\n                return True\n        state[u] = 2\n        return False\n\n    return any(visit(u) for u in graph if state.get(u) is None)\n\nprint(has_cycle({0: [1], 1: [2], 2: []}))\nprint(has_cycle({0: [1], 1: [2], 2: [0]}))",
+  "note": "A back edge to a node still on the recursion stack is a cycle; a black node is not."
+ },
+ {
+  "id": "python/dsa/graph-dfs-paths",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "graph",
+   "dfs",
+   "backtracking"
+  ],
+  "code": "def all_paths(graph, src, dst):\n    out, path = [], []\n\n    def walk(u):\n        path.append(u)\n        if u == dst:\n            out.append(path[:])\n        else:\n            for v in graph.get(u, ()):\n                if v not in path:\n                    walk(v)\n        path.pop()\n\n    walk(src)\n    return out\n\ng = {0: [1, 2], 1: [2, 3], 2: [3], 3: []}\nprint(all_paths(g, 0, 3))",
+  "note": "Append on the way down and pop on the way up; that pop is the backtrack."
+ },
+ {
+  "id": "python/dsa/graph-dijkstra",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "graph",
+   "dijkstra",
+   "heap"
+  ],
+  "code": "import heapq\n\ndef dijkstra(graph, src):\n    dist = {src: 0}\n    heap = [(0, src)]\n    while heap:\n        d, u = heapq.heappop(heap)\n        if d > dist.get(u, float(\"inf\")):\n            continue\n        for v, w in graph.get(u, ()):\n            nd = d + w\n            if nd < dist.get(v, float(\"inf\")):\n                dist[v] = nd\n                heapq.heappush(heap, (nd, v))\n    return dist\n\ng = {\"a\": [(\"b\", 1), (\"c\", 4)], \"b\": [(\"c\", 2), (\"d\", 6)], \"c\": [(\"d\", 3)], \"d\": []}\nprint(dijkstra(g, \"a\"))",
+  "note": "Skip a popped node whose recorded distance is already better; that is the lazy delete."
+ },
+ {
+  "id": "python/dsa/graph-floyd-warshall",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "graph",
+   "floyd-warshall",
+   "all-pairs"
+  ],
+  "code": "def floyd_warshall(matrix):\n    n = len(matrix)\n    dist = [row[:] for row in matrix]\n    for k in range(n):\n        for i in range(n):\n            for j in range(n):\n                if dist[i][k] + dist[k][j] < dist[i][j]:\n                    dist[i][j] = dist[i][k] + dist[k][j]\n    return dist\n\nINF = float(\"inf\")\nm = [[0, 3, INF, 7], [8, 0, 2, INF], [5, INF, 0, 1], [2, INF, INF, 0]]\nfor row in floyd_warshall(m):\n    print(row)",
+  "note": "The k loop must be outermost; swapping it with i or j silently gives wrong answers."
+ },
+ {
+  "id": "python/dsa/graph-kruskal",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "mst",
+   "kruskal",
+   "union-find"
+  ],
+  "code": "def kruskal(n, edges):\n    parent = list(range(n))\n\n    def find(x):\n        while parent[x] != x:\n            parent[x] = parent[parent[x]]\n            x = parent[x]\n        return x\n\n    total, tree = 0, []\n    for w, u, v in sorted(edges):\n        ru, rv = find(u), find(v)\n        if ru != rv:\n            parent[rv] = ru\n            total += w\n            tree.append((u, v, w))\n    return total, tree\n\nedges = [(1, 0, 1), (4, 0, 2), (2, 1, 2), (6, 1, 3), (3, 2, 3)]\nprint(kruskal(4, edges))",
+  "note": "Sort the edges once, then union-find decides which ones would close a cycle."
+ },
+ {
+  "id": "python/dsa/graph-prim",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "mst",
+   "prim",
+   "heap"
+  ],
+  "code": "import heapq\n\ndef prim(graph, start):\n    seen, heap, total, tree = {start}, list(graph[start]), 0, []\n    heapq.heapify(heap)\n    while heap:\n        w, v = heapq.heappop(heap)\n        if v in seen:\n            continue\n        seen.add(v)\n        total += w\n        tree.append((v, w))\n        for nw, nv in graph[v]:\n            if nv not in seen:\n                heapq.heappush(heap, (nw, nv))\n    return total, tree\n\ng = {0: [(1, 1), (4, 2)], 1: [(1, 0), (2, 2), (6, 3)], 2: [(4, 0), (2, 1), (3, 3)], 3: [(6, 1), (3, 2)]}\nprint(prim(g, 0))",
+  "note": "Prim grows one tree from a seed; Kruskal merges a forest. Same weight, different order."
+ },
+ {
+  "id": "python/dsa/graph-scc-kosaraju",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 4,
+  "tags": [
+   "graph",
+   "scc",
+   "kosaraju"
+  ],
+  "code": "def kosaraju(graph):\n    seen, order = set(), []\n\n    def dfs(u):\n        seen.add(u)\n        for v in graph.get(u, ()):\n            if v not in seen:\n                dfs(v)\n        order.append(u)\n\n    for u in graph:\n        if u not in seen:\n            dfs(u)\n\n    rev = {u: [] for u in graph}\n    for u, vs in graph.items():\n        for v in vs:\n            rev.setdefault(v, []).append(u)\n\n    seen.clear()\n    comps = []\n    for u in reversed(order):\n        if u in seen:\n            continue\n        comp, stack = [], [u]\n        seen.add(u)\n        while stack:\n            x = stack.pop()\n            comp.append(x)\n            for y in rev.get(x, ()):\n                if y not in seen:\n                    seen.add(y)\n                    stack.append(y)\n        comps.append(sorted(comp))\n    return comps\n\nprint(kosaraju({0: [1], 1: [2], 2: [0, 3], 3: [4], 4: [3]}))",
+  "note": "Two passes: finish-order on the graph, then plain DFS on the reverse in that order."
+ },
+ {
+  "id": "python/dsa/graph-scc-tarjan",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 4,
+  "tags": [
+   "graph",
+   "scc",
+   "tarjan"
+  ],
+  "code": "def tarjan(graph):\n    index, low, on_stack = {}, {}, set()\n    stack, out, counter = [], [], 0\n\n    def strong(v):\n        nonlocal counter\n        index[v] = low[v] = counter\n        counter += 1\n        stack.append(v)\n        on_stack.add(v)\n        for w in graph.get(v, ()):\n            if w not in index:\n                strong(w)\n                low[v] = min(low[v], low[w])\n            elif w in on_stack:\n                low[v] = min(low[v], index[w])\n        if low[v] == index[v]:\n            comp = []\n            while True:\n                w = stack.pop()\n                on_stack.discard(w)\n                comp.append(w)\n                if w == v:\n                    break\n            out.append(sorted(comp))\n\n    for v in graph:\n        if v not in index:\n            strong(v)\n    return out\n\nprint(tarjan({0: [1], 1: [2], 2: [0, 3], 3: [4], 4: [3]}))",
+  "note": "low[v] == index[v] marks a root, and the stack above it is exactly one component."
+ },
+ {
+  "id": "python/dsa/graph-topo-dfs",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "graph",
+   "topological-sort",
+   "dfs"
+  ],
+  "code": "def topo(graph):\n    WHITE, GREY, BLACK = 0, 1, 2\n    color = {u: WHITE for u in graph}\n    out = []\n\n    def visit(u):\n        if color[u] == GREY:\n            raise ValueError(\"cycle at \" + str(u))\n        if color[u] == BLACK:\n            return\n        color[u] = GREY\n        for v in graph.get(u, ()):\n            visit(v)\n        color[u] = BLACK\n        out.append(u)\n\n    for u in graph:\n        visit(u)\n    return out[::-1]\n\nprint(topo({\"a\": [\"b\", \"c\"], \"b\": [\"d\"], \"c\": [\"d\"], \"d\": []}))",
+  "note": "Post-order push then reverse; the three-colour marking is what detects the cycle."
+ },
+ {
+  "id": "python/dsa/graph-topo-kahn",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "graph",
+   "topological-sort",
+   "kahn"
+  ],
+  "code": "from collections import deque, defaultdict\n\ndef topo(nodes, edges):\n    graph, indeg = defaultdict(list), {n: 0 for n in nodes}\n    for u, v in edges:\n        graph[u].append(v)\n        indeg[v] += 1\n    q = deque(n for n in nodes if indeg[n] == 0)\n    out = []\n    while q:\n        u = q.popleft()\n        out.append(u)\n        for v in graph[u]:\n            indeg[v] -= 1\n            if indeg[v] == 0:\n                q.append(v)\n    return out if len(out) == len(nodes) else None\n\nprint(topo(\"abcde\", [(\"a\", \"b\"), (\"a\", \"c\"), (\"b\", \"d\"), (\"c\", \"d\"), (\"d\", \"e\")]))\nprint(topo(\"xy\", [(\"x\", \"y\"), (\"y\", \"x\")]))",
+  "note": "If the output is shorter than the node count, the leftover nodes form a cycle."
+ },
+ {
+  "id": "python/dsa/graph-union-find",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "union-find",
+   "dsu",
+   "path-compression"
+  ],
+  "code": "class DSU:\n    def __init__(self, n):\n        self.parent = list(range(n))\n        self.rank = [0] * n\n        self.count = n\n\n    def find(self, x):\n        while self.parent[x] != x:\n            self.parent[x] = self.parent[self.parent[x]]\n            x = self.parent[x]\n        return x\n\n    def union(self, a, b):\n        ra, rb = self.find(a), self.find(b)\n        if ra == rb:\n            return False\n        if self.rank[ra] < self.rank[rb]:\n            ra, rb = rb, ra\n        self.parent[rb] = ra\n        if self.rank[ra] == self.rank[rb]:\n            self.rank[ra] += 1\n        self.count -= 1\n        return True\n\nd = DSU(6)\nfor a, b in [(0, 1), (1, 2), (3, 4)]:\n    d.union(a, b)\nprint(d.count, d.find(2) == d.find(0), d.union(0, 2))",
+  "note": "Path compression plus union by rank gives near-constant amortised find."
+ },
+ {
+  "id": "python/dsa/greedy-interval-scheduling",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "greedy",
+   "intervals",
+   "exchange-argument"
+  ],
+  "code": "def max_non_overlapping(intervals):\n    count, last = 0, float(\"-inf\")\n    for start, end in sorted(intervals, key=lambda iv: iv[1]):\n        if start >= last:\n            count += 1\n            last = end\n    return count\n\ndef min_rooms(intervals):\n    starts = sorted(s for s, _ in intervals)\n    ends = sorted(e for _, e in intervals)\n    rooms = best = j = 0\n    for s in starts:\n        while ends[j] <= s:\n            rooms -= 1\n            j += 1\n        rooms += 1\n        best = max(best, rooms)\n    return best\n\nivs = [(1, 3), (2, 5), (4, 7), (6, 8)]\nprint(max_non_overlapping(ivs), min_rooms(ivs))",
+  "note": "Sort by end time: the earliest finisher always leaves the most room for the rest."
+ },
+ {
+  "id": "python/dsa/greedy-jump-game",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "greedy",
+   "jump-game",
+   "reachability"
+  ],
+  "code": "def can_reach(xs):\n    far = 0\n    for i, x in enumerate(xs):\n        if i > far:\n            return False\n        far = max(far, i + x)\n    return True\n\ndef min_jumps(xs):\n    jumps = end = far = 0\n    for i in range(len(xs) - 1):\n        far = max(far, i + xs[i])\n        if i == end:\n            jumps += 1\n            end = far\n    return jumps\n\nprint(can_reach([2, 3, 1, 1, 4]), can_reach([3, 2, 1, 0, 4]), min_jumps([2, 3, 1, 1, 4]))",
+  "note": "One pass: each time the index reaches the end of the current jump, spend another jump."
+ },
+ {
+  "id": "python/dsa/greedy-merge-intervals",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "greedy",
+   "intervals",
+   "merge"
+  ],
+  "code": "def merge(intervals):\n    out = []\n    for start, end in sorted(intervals):\n        if out and start <= out[-1][1]:\n            out[-1][1] = max(out[-1][1], end)\n        else:\n            out.append([start, end])\n    return out\n\ndef insert(intervals, new):\n    return merge([list(iv) for iv in intervals] + [list(new)])\n\nprint(merge([(1, 3), (2, 6), (8, 10), (15, 18)]))\nprint(insert([(1, 3), (6, 9)], (2, 5)))",
+  "note": "Sorting by start means one pass suffices: either extend the last interval or open a new one."
+ },
+ {
+  "id": "python/dsa/greedy-task-scheduler",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "greedy",
+   "scheduling",
+   "counting"
+  ],
+  "code": "from collections import Counter\n\ndef least_interval(tasks, cooldown):\n    counts = Counter(tasks)\n    top = max(counts.values())\n    ties = sum(1 for v in counts.values() if v == top)\n    return max(len(tasks), (top - 1) * (cooldown + 1) + ties)\n\ndef reorganize(s):\n    counts = Counter(s)\n    if max(counts.values()) > (len(s) + 1) // 2:\n        return \"\"\n    out = [\"\"] * len(s)\n    i = 0\n    for ch, n in counts.most_common():\n        for _ in range(n):\n            if i >= len(s):\n                i = 1\n            out[i] = ch\n            i += 2\n    return \"\".join(out)\n\nprint(least_interval([\"A\", \"A\", \"A\", \"B\", \"B\", \"B\"], 2), reorganize(\"aab\"))",
+  "note": "The most frequent task fixes the skeleton; ties fill the final partial row."
+ },
+ {
+  "id": "python/dsa/heap-lazy-deletion",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 4,
+  "tags": [
+   "heap",
+   "lazy-deletion"
+  ],
+  "code": "import heapq\nfrom collections import Counter\n\nclass LazyHeap:\n    def __init__(self):\n        self.heap, self.dead, self.size = [], Counter(), 0\n\n    def push(self, x):\n        heapq.heappush(self.heap, x)\n        self.size += 1\n\n    def remove(self, x):\n        self.dead[x] += 1\n        self.size -= 1\n\n    def top(self):\n        while self.heap and self.dead[self.heap[0]]:\n            self.dead[self.heap[0]] -= 1\n            heapq.heappop(self.heap)\n        return self.heap[0] if self.heap else None\n\nh = LazyHeap()\nfor x in (5, 1, 3):\n    h.push(x)\nh.remove(1)\nprint(h.top(), h.size)",
+  "note": "You cannot remove from the middle of a heap, so mark it dead and skip it at the top."
+ },
+ {
+  "id": "python/dsa/heap-merge-k",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "heap",
+   "merge"
+  ],
+  "code": "import heapq\n\ndef merge_k(lists):\n    heap = [(lst[0], i, 0) for i, lst in enumerate(lists) if lst]\n    heapq.heapify(heap)\n    out = []\n    while heap:\n        val, li, ci = heapq.heappop(heap)\n        out.append(val)\n        if ci + 1 < len(lists[li]):\n            heapq.heappush(heap, (lists[li][ci + 1], li, ci + 1))\n    return out\n\nprint(merge_k([[1, 4, 7], [2, 5], [3, 6, 8, 9]]))\nprint(list(heapq.merge([1, 4], [2, 3], [0])))",
+  "note": "The heap holds one entry per list, so memory is O(k) no matter how long the lists are."
+ },
+ {
+  "id": "python/dsa/heap-top-k",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "heap",
+   "top-k"
+  ],
+  "code": "import heapq\nfrom collections import Counter\n\ndef top_k(xs, k):\n    heap = []\n    for x in xs:\n        heapq.heappush(heap, x)\n        if len(heap) > k:\n            heapq.heappop(heap)\n    return sorted(heap, reverse=True)\n\ndef k_most_frequent(words, k):\n    counts = Counter(words)\n    return heapq.nlargest(k, counts, key=counts.get)\n\nprint(top_k([3, 1, 9, 7, 2, 8], 3))\nprint(k_most_frequent([\"a\", \"b\", \"a\", \"c\", \"b\", \"a\"], 2))",
+  "note": "Keep a heap of size k and evict the smallest; that is O(n log k), not O(n log n)."
+ },
+ {
+  "id": "python/dsa/heap-two-median",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "heap",
+   "median",
+   "streaming"
+  ],
+  "code": "import heapq\n\nclass MedianStream:\n    def __init__(self):\n        self.low, self.high = [], []\n\n    def add(self, x):\n        heapq.heappush(self.low, -x)\n        heapq.heappush(self.high, -heapq.heappop(self.low))\n        if len(self.high) > len(self.low):\n            heapq.heappush(self.low, -heapq.heappop(self.high))\n\n    def median(self):\n        if len(self.low) > len(self.high):\n            return float(-self.low[0])\n        return (-self.low[0] + self.high[0]) / 2\n\nm = MedianStream()\nfor x in (5, 15, 1, 3):\n    m.add(x)\n    print(m.median(), end=\" \")",
+  "note": "Push through the other heap first; that single bounce keeps both halves correct."
+ },
+ {
+  "id": "python/dsa/heapq-basics",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "heapq",
+   "priority-queue"
+  ],
+  "code": "import heapq\n\nxs = [5, 1, 8, 3, 9, 2]\nheapq.heapify(xs)\nheapq.heappush(xs, 0)\nprint(heapq.heappop(xs), xs[0])\nprint(heapq.heappushpop(xs, 4), heapq.heapreplace(xs, 7))\nprint(heapq.nsmallest(3, xs), heapq.nlargest(2, xs))\n\ntasks = [(2, \"b\"), (1, \"a\"), (3, \"c\")]\nheapq.heapify(tasks)\nprint([heapq.heappop(tasks)[1] for _ in range(len(tasks))])",
+  "note": "heapq is a min-heap only; negate the key to get max-heap behaviour."
+ },
+ {
+  "id": "python/dsa/heapsort",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "heapsort",
+   "sift-down"
+  ],
+  "code": "def heapsort(xs):\n    n = len(xs)\n\n    def sift(root, end):\n        while True:\n            child = 2 * root + 1\n            if child >= end:\n                return\n            if child + 1 < end and xs[child + 1] > xs[child]:\n                child += 1\n            if xs[root] >= xs[child]:\n                return\n            xs[root], xs[child] = xs[child], xs[root]\n            root = child\n\n    for start in range(n // 2 - 1, -1, -1):\n        sift(start, n)\n    for end in range(n - 1, 0, -1):\n        xs[0], xs[end] = xs[end], xs[0]\n        sift(0, end)\n    return xs\n\nprint(heapsort([5, 2, 9, 1, 5, 6, 0]))",
+  "note": "Build the max-heap bottom-up from n//2 - 1; only internal nodes need sifting."
+ },
+ {
+  "id": "python/dsa/linked-list-cycle",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "linked-list",
+   "floyd",
+   "cycle"
+  ],
+  "code": "class Node:\n    def __init__(self, val, nxt=None):\n        self.val, self.next = val, nxt\n\ndef cycle_start(head):\n    slow = fast = head\n    while fast and fast.next:\n        slow, fast = slow.next, fast.next.next\n        if slow is fast:\n            slow = head\n            while slow is not fast:\n                slow, fast = slow.next, fast.next\n            return slow\n    return None\n\na, b, c = Node(1), Node(2), Node(3)\na.next, b.next, c.next = b, c, b\nfound = cycle_start(a)\nprint(found.val if found else None, cycle_start(Node(9)))",
+  "note": "After they meet, restarting one pointer at the head finds the entry node in n more steps."
+ },
+ {
+  "id": "python/dsa/linked-list-k-group",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 4,
+  "tags": [
+   "linked-list",
+   "reverse",
+   "k-group"
+  ],
+  "code": "class Node:\n    def __init__(self, val, nxt=None):\n        self.val, self.next = val, nxt\n\ndef reverse_k(head, k):\n    node, count = head, 0\n    while node and count < k:\n        node, count = node.next, count + 1\n    if count < k:\n        return head\n    prev = reverse_k(node, k)\n    while count:\n        head.next, prev, head = prev, head, head.next\n        count -= 1\n    return prev\n\ndef build(vals):\n    head = None\n    for v in reversed(vals):\n        head = Node(v, head)\n    return head\n\nn, out = reverse_k(build([1, 2, 3, 4, 5]), 2), []\nwhile n:\n    out.append(n.val)\n    n = n.next\nprint(out)",
+  "note": "Count k nodes ahead before touching anything, or a short final group gets reversed too."
+ },
+ {
+  "id": "python/dsa/linked-list-merge",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "linked-list",
+   "merge"
+  ],
+  "code": "class Node:\n    def __init__(self, val, nxt=None):\n        self.val, self.next = val, nxt\n\ndef merge(a, b):\n    dummy = tail = Node(0)\n    while a and b:\n        if a.val <= b.val:\n            tail.next, a = a, a.next\n        else:\n            tail.next, b = b, b.next\n        tail = tail.next\n    tail.next = a or b\n    return dummy.next\n\ndef build(vals):\n    head = None\n    for v in reversed(vals):\n        head = Node(v, head)\n    return head\n\nm = merge(build([1, 4, 7]), build([2, 3, 8]))\nout = []\nwhile m:\n    out.append(m.val)\n    m = m.next\nprint(out)",
+  "note": "A dummy head removes the \"is this the first node\" branch from the whole loop."
+ },
+ {
+  "id": "python/dsa/linked-list-reorder",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "linked-list",
+   "reorder"
+  ],
+  "code": "class Node:\n    def __init__(self, val, nxt=None):\n        self.val, self.next = val, nxt\n\ndef reorder(head):\n    slow = fast = head\n    while fast and fast.next:\n        slow, fast = slow.next, fast.next.next\n    second, slow.next, prev = slow.next, None, None\n    while second:\n        second.next, prev, second = prev, second, second.next\n    first, second = head, prev\n    while second:\n        n1, n2 = first.next, second.next\n        first.next, second.next = second, n1\n        first, second = n1, n2\n    return head\n\nh = Node(1, Node(2, Node(3, Node(4, Node(5)))))\nn, out = reorder(h), []\nwhile n:\n    out.append(n.val)\n    n = n.next\nprint(out)",
+  "note": "Three phases, no extra storage: find the middle, reverse the tail, then weave."
+ },
+ {
+  "id": "python/dsa/linked-list-reverse",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "linked-list",
+   "reverse"
+  ],
+  "code": "class Node:\n    def __init__(self, val, nxt=None):\n        self.val, self.next = val, nxt\n\ndef reverse(head):\n    prev = None\n    while head:\n        head.next, prev, head = prev, head, head.next\n    return prev\n\ndef reverse_rec(head, prev=None):\n    if not head:\n        return prev\n    nxt = head.next\n    head.next = prev\n    return reverse_rec(nxt, head)\n\ndef to_list(head):\n    out = []\n    while head:\n        out.append(head.val)\n        head = head.next\n    return out\n\nh = Node(1, Node(2, Node(3)))\nprint(to_list(reverse(h)), to_list(reverse_rec(Node(4, Node(5)))))",
+  "note": "The iterative form needs three names; the recursive form trades them for stack depth."
+ },
+ {
+  "id": "python/dsa/lru-cache",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "lru",
+   "cache",
+   "ordered-dict"
+  ],
+  "code": "class LRU:\n    def __init__(self, capacity):\n        self.capacity = capacity\n        self.data = {}\n\n    def get(self, key):\n        if key not in self.data:\n            return -1\n        self.data[key] = self.data.pop(key)\n        return self.data[key]\n\n    def put(self, key, value):\n        if key in self.data:\n            self.data.pop(key)\n        elif len(self.data) >= self.capacity:\n            self.data.pop(next(iter(self.data)))\n        self.data[key] = value\n\nc = LRU(2)\nc.put(1, 1); c.put(2, 2)\nprint(c.get(1))\nc.put(3, 3)\nprint(c.get(2), list(c.data))",
+  "note": "A dict preserves insertion order, so pop-and-reinsert is the whole recency mechanism."
+ },
+ {
+  "id": "python/dsa/mergesort",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "mergesort",
+   "divide-conquer"
+  ],
+  "code": "def mergesort(xs):\n    if len(xs) <= 1:\n        return xs\n    mid = len(xs) // 2\n    left, right = mergesort(xs[:mid]), mergesort(xs[mid:])\n    out, i, j = [], 0, 0\n    while i < len(left) and j < len(right):\n        if left[i] <= right[j]:\n            out.append(left[i])\n            i += 1\n        else:\n            out.append(right[j])\n            j += 1\n    out.extend(left[i:])\n    out.extend(right[j:])\n    return out\n\nprint(mergesort([5, 2, 9, 1, 5, 6, 0]))",
+  "note": "The <= in the merge comparison is what makes the sort stable."
+ },
+ {
+  "id": "python/dsa/monotonic-deque",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "monotonic-deque",
+   "sliding-window"
+  ],
+  "code": "from collections import deque\n\ndef window_max(xs, k):\n    dq, out = deque(), []\n    for i, x in enumerate(xs):\n        while dq and xs[dq[-1]] <= x:\n            dq.pop()\n        dq.append(i)\n        if dq[0] <= i - k:\n            dq.popleft()\n        if i >= k - 1:\n            out.append(xs[dq[0]])\n    return out\n\nprint(window_max([1, 3, -1, -3, 5, 3, 6, 7], 3))",
+  "note": "The deque holds indices in decreasing value order, so the front is always the window max."
+ },
+ {
+  "id": "python/dsa/monotonic-stack",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "monotonic-stack",
+   "next-greater"
+  ],
+  "code": "def next_greater(xs):\n    out, stack = [-1] * len(xs), []\n    for i, x in enumerate(xs):\n        while stack and xs[stack[-1]] < x:\n            out[stack.pop()] = x\n        stack.append(i)\n    return out\n\ndef largest_rectangle(heights):\n    stack, best = [], 0\n    for i, h in enumerate(heights + [0]):\n        while stack and heights[stack[-1]] >= h:\n            height = heights[stack.pop()]\n            left = stack[-1] + 1 if stack else 0\n            best = max(best, height * (i - left))\n        stack.append(i)\n    return best\n\nprint(next_greater([2, 1, 2, 4, 3]), largest_rectangle([2, 1, 5, 6, 2, 3]))",
+  "note": "Each index is pushed and popped once, so the nested while loop is still linear overall."
+ },
+ {
+  "id": "python/dsa/prefix-sums",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "prefix-sum",
+   "hashmap"
+  ],
+  "code": "from itertools import accumulate\n\ndef build(xs):\n    return [0] + list(accumulate(xs))\n\ndef range_sum(prefix, i, j):\n    return prefix[j + 1] - prefix[i]\n\ndef count_subarrays_summing_to(xs, target):\n    seen, running, total = {0: 1}, 0, 0\n    for x in xs:\n        running += x\n        total += seen.get(running - target, 0)\n        seen[running] = seen.get(running, 0) + 1\n    return total\n\np = build([1, 2, 3, 4, 5])\nprint(range_sum(p, 1, 3), count_subarrays_summing_to([1, 1, 1], 2))",
+  "note": "A prefix array of length n+1 removes every special case at index zero."
+ },
+ {
+  "id": "python/dsa/prefix-sums-2d",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "prefix-sum",
+   "2d"
+  ],
+  "code": "def build_2d(grid):\n    rows, cols = len(grid), len(grid[0])\n    p = [[0] * (cols + 1) for _ in range(rows + 1)]\n    for r in range(rows):\n        for c in range(cols):\n            p[r + 1][c + 1] = grid[r][c] + p[r][c + 1] + p[r + 1][c] - p[r][c]\n    return p\n\ndef rect_sum(p, r1, c1, r2, c2):\n    return p[r2 + 1][c2 + 1] - p[r1][c2 + 1] - p[r2 + 1][c1] + p[r1][c1]\n\ngrid = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]\np = build_2d(grid)\nprint(rect_sum(p, 0, 0, 1, 1), rect_sum(p, 1, 1, 2, 2))",
+  "note": "Inclusion-exclusion: add the two overlapping rectangles back once, subtract the corner twice."
+ },
+ {
+  "id": "python/dsa/quicksort-hoare",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "quicksort",
+   "hoare",
+   "partition"
+  ],
+  "code": "def quicksort(xs, lo=0, hi=None):\n    if hi is None:\n        hi = len(xs) - 1\n    if lo >= hi:\n        return xs\n    pivot = xs[(lo + hi) // 2]\n    i, j = lo - 1, hi + 1\n    while True:\n        i += 1\n        while xs[i] < pivot:\n            i += 1\n        j -= 1\n        while xs[j] > pivot:\n            j -= 1\n        if i >= j:\n            break\n        xs[i], xs[j] = xs[j], xs[i]\n    quicksort(xs, lo, j)\n    quicksort(xs, j + 1, hi)\n    return xs\n\nprint(quicksort([5, 2, 9, 1, 5, 6, 0]))",
+  "note": "Hoare does fewer swaps than Lomuto, but the recursion must split on j, not on i."
+ },
+ {
+  "id": "python/dsa/quicksort-lomuto",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "quicksort",
+   "lomuto",
+   "partition"
+  ],
+  "code": "def quicksort(xs, lo=0, hi=None):\n    if hi is None:\n        hi = len(xs) - 1\n    if lo >= hi:\n        return xs\n    pivot, i = xs[hi], lo\n    for j in range(lo, hi):\n        if xs[j] < pivot:\n            xs[i], xs[j] = xs[j], xs[i]\n            i += 1\n    xs[i], xs[hi] = xs[hi], xs[i]\n    quicksort(xs, lo, i - 1)\n    quicksort(xs, i + 1, hi)\n    return xs\n\nprint(quicksort([5, 2, 9, 1, 5, 6, 0]))",
+  "note": "Lomuto keeps one write pointer, so the partition is a single forward pass."
+ },
+ {
+  "id": "python/dsa/radix-sort",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "radix-sort",
+   "lsd"
+  ],
+  "code": "def radix_sort(xs, base=10):\n    out, exp = list(xs), 1\n    while max(out, default=0) // exp:\n        buckets = [[] for _ in range(base)]\n        for x in out:\n            buckets[(x // exp) % base].append(x)\n        out = [x for bucket in buckets for x in bucket]\n        exp *= base\n    return out\n\nprint(radix_sort([170, 45, 75, 90, 2, 802, 24, 66]))\nprint(radix_sort([5, 3, 1], base=2))",
+  "note": "LSD radix works only because each digit pass is itself stable."
+ },
+ {
+  "id": "python/dsa/segment-tree",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 4,
+  "tags": [
+   "segment-tree",
+   "range-query",
+   "iterative"
+  ],
+  "code": "class SegTree:\n    def __init__(self, xs):\n        self.n = len(xs)\n        self.t = [0] * self.n + list(xs)\n        for i in range(self.n - 1, 0, -1):\n            self.t[i] = self.t[2 * i] + self.t[2 * i + 1]\n\n    def update(self, i, val):\n        i += self.n\n        self.t[i] = val\n        while i > 1:\n            i //= 2\n            self.t[i] = self.t[2 * i] + self.t[2 * i + 1]\n\n    def query(self, lo, hi):\n        res, lo, hi = 0, lo + self.n, hi + self.n\n        while lo < hi:\n            if lo & 1:\n                res += self.t[lo]\n                lo += 1\n            if hi & 1:\n                hi -= 1\n                res += self.t[hi]\n            lo //= 2\n            hi //= 2\n        return res\n\nst = SegTree([1, 2, 3, 4, 5])\nprint(st.query(1, 4))\nst.update(2, 10)\nprint(st.query(1, 4), st.query(0, 5))",
+  "note": "The iterative bottom-up form needs no recursion and no 4n padding."
+ },
+ {
+  "id": "python/dsa/segment-tree-lazy",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 4,
+  "tags": [
+   "segment-tree",
+   "lazy-propagation",
+   "range-update"
+  ],
+  "code": "class LazySeg:\n    def __init__(self, n):\n        self.n = n\n        self.sum = [0] * (4 * n)\n        self.lazy = [0] * (4 * n)\n\n    def _push(self, node, lo, hi):\n        if self.lazy[node]:\n            self.sum[node] += self.lazy[node] * (hi - lo + 1)\n            if lo != hi:\n                self.lazy[2 * node] += self.lazy[node]\n                self.lazy[2 * node + 1] += self.lazy[node]\n            self.lazy[node] = 0\n\n    def add(self, l, r, val, node=1, lo=0, hi=None):\n        hi = self.n - 1 if hi is None else hi\n        self._push(node, lo, hi)\n        if r < lo or hi < l:\n            return\n        if l <= lo and hi <= r:\n            self.lazy[node] += val\n            self._push(node, lo, hi)\n            return\n        mid = (lo + hi) // 2\n        self.add(l, r, val, 2 * node, lo, mid)\n        self.add(l, r, val, 2 * node + 1, mid + 1, hi)\n        self.sum[node] = self.sum[2 * node] + self.sum[2 * node + 1]\n\n    def query(self, l, r, node=1, lo=0, hi=None):\n        hi = self.n - 1 if hi is None else hi\n        self._push(node, lo, hi)\n        if r < lo or hi < l:\n            return 0\n        if l <= lo and hi <= r:\n            return self.sum[node]\n        mid = (lo + hi) // 2\n        return self.query(l, r, 2 * node, lo, mid) + self.query(l, r, 2 * node + 1, mid + 1, hi)\n\nt = LazySeg(8)\nt.add(0, 3, 5)\nt.add(2, 6, 2)\nprint(t.query(0, 7), t.query(2, 3), t.query(4, 6))",
+  "note": "Push down before descending and pull up after; skip either and the sums go stale."
+ },
+ {
+  "id": "python/dsa/sort-cmp-to-key",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "sorting",
+   "cmp-to-key"
+  ],
+  "code": "from functools import cmp_to_key\n\ndef largest_number(nums):\n    def cmp(a, b):\n        if a + b > b + a:\n            return -1\n        return 1 if a + b < b + a else 0\n    return \"\".join(sorted(map(str, nums), key=cmp_to_key(cmp)))\n\nprint(largest_number([3, 30, 34, 5, 9]))\nprint(sorted([(1, \"b\"), (1, \"a\"), (0, \"c\")], key=cmp_to_key(lambda x, y: (x > y) - (x < y))))",
+  "note": "Use cmp_to_key only when the order is not expressible as a key, like this concatenation test."
+ },
+ {
+  "id": "python/dsa/sparse-table",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 4,
+  "tags": [
+   "sparse-table",
+   "rmq",
+   "immutable"
+  ],
+  "code": "class SparseTable:\n    def __init__(self, xs):\n        n = len(xs)\n        k = n.bit_length()\n        self.t = [list(xs)] + [[0] * n for _ in range(k)]\n        for j in range(1, k + 1):\n            span = 1 << j\n            for i in range(n - span + 1):\n                self.t[j][i] = min(self.t[j - 1][i], self.t[j - 1][i + (span >> 1)])\n\n    def query(self, lo, hi):\n        j = (hi - lo + 1).bit_length() - 1\n        return min(self.t[j][lo], self.t[j][hi - (1 << j) + 1])\n\nst = SparseTable([5, 2, 9, 1, 7, 3, 8, 4])\nprint(st.query(0, 7), st.query(4, 6), st.query(2, 2))",
+  "note": "Overlapping halves are fine for min and max because they are idempotent; sums are not."
+ },
+ {
+  "id": "python/dsa/string-kmp",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 4,
+  "tags": [
+   "string",
+   "kmp",
+   "prefix-function"
+  ],
+  "code": "def build_lps(pattern):\n    lps, k = [0] * len(pattern), 0\n    for i in range(1, len(pattern)):\n        while k and pattern[i] != pattern[k]:\n            k = lps[k - 1]\n        if pattern[i] == pattern[k]:\n            k += 1\n            lps[i] = k\n    return lps\n\ndef kmp(text, pattern):\n    if not pattern:\n        return []\n    lps, out, k = build_lps(pattern), [], 0\n    for i, ch in enumerate(text):\n        while k and ch != pattern[k]:\n            k = lps[k - 1]\n        if ch == pattern[k]:\n            k += 1\n            if k == len(pattern):\n                out.append(i - k + 1)\n                k = lps[k - 1]\n    return out\n\nprint(build_lps(\"ababaca\"), kmp(\"ababcabcabababd\", \"ababd\"))",
+  "note": "lps[i] is the longest proper prefix that is also a suffix, and it is never re-scanned."
+ },
+ {
+  "id": "python/dsa/string-manacher",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 4,
+  "tags": [
+   "string",
+   "manacher",
+   "palindrome"
+  ],
+  "code": "def longest_palindrome(s):\n    if not s:\n        return \"\"\n    t = \"#\" + \"#\".join(s) + \"#\"\n    n = len(t)\n    radius = [0] * n\n    center = right = 0\n    for i in range(n):\n        if i < right:\n            radius[i] = min(right - i, radius[2 * center - i])\n        while (i - radius[i] - 1 >= 0 and i + radius[i] + 1 < n\n               and t[i - radius[i] - 1] == t[i + radius[i] + 1]):\n            radius[i] += 1\n        if i + radius[i] > right:\n            center, right = i, i + radius[i]\n    best = max(range(n), key=lambda i: radius[i])\n    return t[best - radius[best]:best + radius[best] + 1].replace(\"#\", \"\")\n\nprint(longest_palindrome(\"babad\"), longest_palindrome(\"cbbd\"), longest_palindrome(\"a\"))",
+  "note": "Interleaving a separator makes every palindrome odd-length, which halves the case analysis."
+ },
+ {
+  "id": "python/dsa/string-rabin-karp",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "string",
+   "rolling-hash",
+   "rabin-karp"
+  ],
+  "code": "def rabin_karp(text, pattern, base=256, mod=(1 << 61) - 1):\n    n, m = len(text), len(pattern)\n    if m > n or not m:\n        return []\n    high = pow(base, m - 1, mod)\n    hp = hs = 0\n    for i in range(m):\n        hp = (hp * base + ord(pattern[i])) % mod\n        hs = (hs * base + ord(text[i])) % mod\n    out = []\n    for i in range(n - m + 1):\n        if hs == hp and text[i:i + m] == pattern:\n            out.append(i)\n        if i + m < n:\n            hs = ((hs - ord(text[i]) * high) * base + ord(text[i + m])) % mod\n    return out\n\nprint(rabin_karp(\"abracadabra\", \"abra\"))",
+  "note": "Always verify a hash hit against the real substring; equal hashes are not equal strings."
+ },
+ {
+  "id": "python/dsa/string-rolling-hash",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "string",
+   "rolling-hash",
+   "prefix"
+  ],
+  "code": "class RollingHash:\n    def __init__(self, s, base=131, mod=(1 << 61) - 1):\n        self.mod = mod\n        self.h = [0] * (len(s) + 1)\n        self.pw = [1] * (len(s) + 1)\n        for i, ch in enumerate(s):\n            self.h[i + 1] = (self.h[i] * base + ord(ch)) % mod\n            self.pw[i + 1] = self.pw[i] * base % mod\n\n    def get(self, i, j):\n        return (self.h[j] - self.h[i] * self.pw[j - i]) % self.mod\n\ns = \"abcabcabc\"\nrh = RollingHash(s)\nprint(rh.get(0, 3) == rh.get(3, 6), rh.get(0, 3) == rh.get(1, 4))",
+  "note": "Prefix hashes give any substring's hash in O(1), which is what makes comparisons cheap."
+ },
+ {
+  "id": "python/dsa/string-z-algorithm",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 4,
+  "tags": [
+   "string",
+   "z-algorithm",
+   "prefix"
+  ],
+  "code": "def z_function(s):\n    n = len(s)\n    z = [0] * n\n    left = right = 0\n    for i in range(1, n):\n        if i < right:\n            z[i] = min(right - i, z[i - left])\n        while i + z[i] < n and s[z[i]] == s[i + z[i]]:\n            z[i] += 1\n        if i + z[i] > right:\n            left, right = i, i + z[i]\n    return z\n\ndef find_all(text, pattern):\n    z = z_function(pattern + \"\\x00\" + text)\n    m = len(pattern)\n    return [i - m - 1 for i, v in enumerate(z) if v == m]\n\nprint(z_function(\"aabxaabxcaabxaabxay\")[:8], find_all(\"ababcabab\", \"abab\"))",
+  "note": "z[i] is the match length at i against the whole string, reused from the rightmost box."
+ },
+ {
+  "id": "python/dsa/ternary-search",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "ternary-search",
+   "unimodal"
+  ],
+  "code": "def ternary_max(f, lo, hi, iters=200):\n    for _ in range(iters):\n        m1 = lo + (hi - lo) / 3\n        m2 = hi - (hi - lo) / 3\n        if f(m1) < f(m2):\n            lo = m1\n        else:\n            hi = m2\n    return (lo + hi) / 2\n\npeak = ternary_max(lambda x: -(x - 2.5) ** 2 + 7, -10.0, 10.0)\nprint(f\"{peak:.6f}\")",
+  "note": "Ternary search needs a strictly unimodal function; binary search needs a monotone one."
+ },
+ {
+  "id": "python/dsa/tree-bfs-levels",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "tree",
+   "bfs",
+   "deque"
+  ],
+  "code": "from collections import deque\n\nclass T:\n    def __init__(self, val, left=None, right=None):\n        self.val, self.left, self.right = val, left, right\n\ndef levels(root):\n    if not root:\n        return []\n    out, q = [], deque([root])\n    while q:\n        row = []\n        for _ in range(len(q)):\n            n = q.popleft()\n            row.append(n.val)\n            if n.left:\n                q.append(n.left)\n            if n.right:\n                q.append(n.right)\n        out.append(row)\n    return out\n\nroot = T(1, T(2, T(4), T(5)), T(3, None, T(6)))\nprint(levels(root), [row[-1] for row in levels(root)])",
+  "note": "Snapshot len(queue) at the top of each round and that round is exactly one level."
+ },
+ {
+  "id": "python/dsa/tree-dfs-iterative",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "tree",
+   "dfs",
+   "stack"
+  ],
+  "code": "class T:\n    def __init__(self, val, left=None, right=None):\n        self.val, self.left, self.right = val, left, right\n\ndef preorder(root):\n    out, stack = [], [root] if root else []\n    while stack:\n        n = stack.pop()\n        out.append(n.val)\n        if n.right:\n            stack.append(n.right)\n        if n.left:\n            stack.append(n.left)\n    return out\n\ndef inorder(root):\n    out, stack, cur = [], [], root\n    while stack or cur:\n        while cur:\n            stack.append(cur)\n            cur = cur.left\n        cur = stack.pop()\n        out.append(cur.val)\n        cur = cur.right\n    return out\n\nroot = T(1, T(2, T(4), T(5)), T(3))\nprint(preorder(root), inorder(root))",
+  "note": "Push right before left, so the left child is the one that pops first."
+ },
+ {
+  "id": "python/dsa/tree-dfs-recursive",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "tree",
+   "dfs",
+   "traversal"
+  ],
+  "code": "class T:\n    def __init__(self, val, left=None, right=None):\n        self.val, self.left, self.right = val, left, right\n\ndef preorder(n):\n    return [n.val] + preorder(n.left) + preorder(n.right) if n else []\n\ndef inorder(n):\n    return inorder(n.left) + [n.val] + inorder(n.right) if n else []\n\ndef postorder(n):\n    return postorder(n.left) + postorder(n.right) + [n.val] if n else []\n\nroot = T(1, T(2, T(4), T(5)), T(3))\nprint(preorder(root), inorder(root), postorder(root))",
+  "note": "The three orders differ only in where the visit sits relative to the two recursions."
+ },
+ {
+  "id": "python/dsa/tree-diameter",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "tree",
+   "diameter",
+   "dfs"
+  ],
+  "code": "class T:\n    def __init__(self, val, left=None, right=None):\n        self.val, self.left, self.right = val, left, right\n\ndef diameter(root):\n    best = 0\n\n    def height(n):\n        nonlocal best\n        if not n:\n            return 0\n        lh, rh = height(n.left), height(n.right)\n        best = max(best, lh + rh)\n        return 1 + max(lh, rh)\n\n    height(root)\n    return best\n\nroot = T(1, T(2, T(4, T(6)), T(5)), T(3))\nprint(diameter(root))",
+  "note": "Return the height upward while recording the best through-path in a nonlocal."
+ },
+ {
+  "id": "python/dsa/tree-lca",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "tree",
+   "lca"
+  ],
+  "code": "class T:\n    def __init__(self, val, left=None, right=None):\n        self.val, self.left, self.right = val, left, right\n\ndef lca(node, a, b):\n    if node is None or node.val in (a, b):\n        return node\n    left, right = lca(node.left, a, b), lca(node.right, a, b)\n    if left and right:\n        return node\n    return left or right\n\nroot = T(3, T(5, T(6), T(2, T(7), T(4))), T(1, T(0), T(8)))\nprint(lca(root, 6, 4).val, lca(root, 5, 1).val, lca(root, 7, 8).val)",
+  "note": "A node whose two subtrees each return something non-null is the split point."
+ },
+ {
+  "id": "python/dsa/tree-morris",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 4,
+  "tags": [
+   "tree",
+   "morris",
+   "threading"
+  ],
+  "code": "class T:\n    def __init__(self, val, left=None, right=None):\n        self.val, self.left, self.right = val, left, right\n\ndef morris_inorder(root):\n    out, cur = [], root\n    while cur:\n        if not cur.left:\n            out.append(cur.val)\n            cur = cur.right\n            continue\n        pred = cur.left\n        while pred.right and pred.right is not cur:\n            pred = pred.right\n        if pred.right is None:\n            pred.right = cur\n            cur = cur.left\n        else:\n            pred.right = None\n            out.append(cur.val)\n            cur = cur.right\n    return out\n\nprint(morris_inorder(T(4, T(2, T(1), T(3)), T(6, T(5)))))",
+  "note": "Morris borrows the predecessor's right pointer as a return path, so space is O(1)."
+ },
+ {
+  "id": "python/dsa/tree-serialize",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "tree",
+   "serialize",
+   "preorder"
+  ],
+  "code": "class T:\n    def __init__(self, val, left=None, right=None):\n        self.val, self.left, self.right = val, left, right\n\ndef serialize(n):\n    if not n:\n        return [\"#\"]\n    return [str(n.val)] + serialize(n.left) + serialize(n.right)\n\ndef deserialize(tokens):\n    it = iter(tokens)\n\n    def build():\n        tok = next(it)\n        if tok == \"#\":\n            return None\n        return T(int(tok), build(), build())\n\n    return build()\n\nroot = T(1, T(2), T(3, T(4)))\nblob = serialize(root)\nprint(\",\".join(blob), serialize(deserialize(blob)) == blob)",
+  "note": "Preorder with an explicit null marker is enough to rebuild the tree uniquely."
+ },
+ {
+  "id": "python/dsa/trie-insert-search",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "trie",
+   "prefix"
+  ],
+  "code": "END = \"$\"\n\ndef insert(root, word):\n    node = root\n    for ch in word:\n        node = node.setdefault(ch, {})\n    node[END] = True\n\ndef find(root, word):\n    node = root\n    for ch in word:\n        if ch not in node:\n            return None\n        node = node[ch]\n    return node\n\nroot = {}\nfor w in (\"car\", \"cart\", \"cat\", \"dog\"):\n    insert(root, w)\nprint(find(root, \"car\") is not None, END in find(root, \"car\"))\nprint(END in (find(root, \"ca\") or {}), sorted(find(root, \"ca\")))",
+  "note": "A nested dict is a trie; the sentinel key is what separates \"word\" from \"prefix\"."
+ },
+ {
+  "id": "python/dsa/trie-word-break",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "trie",
+   "dp",
+   "word-break"
+  ],
+  "code": "def word_break(s, words):\n    root = {}\n    for w in words:\n        node = root\n        for ch in w:\n            node = node.setdefault(ch, {})\n        node[\"$\"] = True\n\n    reachable = [True] + [False] * len(s)\n    for i in range(len(s)):\n        if not reachable[i]:\n            continue\n        node = root\n        for j in range(i, len(s)):\n            node = node.get(s[j])\n            if node is None:\n                break\n            if \"$\" in node:\n                reachable[j + 1] = True\n    return reachable[-1]\n\nprint(word_break(\"applepenapple\", [\"apple\", \"pen\"]), word_break(\"catsandog\", [\"cats\", \"dog\", \"sand\"]))",
+  "note": "Walk the trie from each start index; the DP marks which cut points are reachable."
+ },
+ {
+  "id": "python/dsa/two-pointers-fast-slow",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "two-pointers",
+   "floyd"
+  ],
+  "code": "def middle(xs):\n    slow = fast = 0\n    while fast + 1 < len(xs):\n        slow, fast = slow + 1, fast + 2\n    return xs[slow]\n\ndef has_duplicate_cycle(nums):\n    slow = fast = nums[0]\n    while True:\n        slow = nums[slow]\n        fast = nums[nums[fast]]\n        if slow == fast:\n            break\n    slow = nums[0]\n    while slow != fast:\n        slow, fast = nums[slow], nums[fast]\n    return slow\n\nprint(middle([1, 2, 3, 4, 5]), has_duplicate_cycle([1, 3, 4, 2, 2]))",
+  "note": "Fast moves two, slow moves one; they meet inside the cycle, never before it."
+ },
+ {
+  "id": "python/dsa/two-pointers-opposite",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "two-pointers",
+   "sorted"
+  ],
+  "code": "def two_sum(xs, target):\n    i, j = 0, len(xs) - 1\n    while i < j:\n        s = xs[i] + xs[j]\n        if s == target:\n            return i, j\n        if s < target:\n            i += 1\n        else:\n            j -= 1\n    return None\n\ndef max_area(heights):\n    i, j, best = 0, len(heights) - 1, 0\n    while i < j:\n        best = max(best, (j - i) * min(heights[i], heights[j]))\n        if heights[i] < heights[j]:\n            i += 1\n        else:\n            j -= 1\n    return best\n\nprint(two_sum([1, 3, 4, 6, 9], 10), max_area([1, 8, 6, 2, 5, 4, 8, 3, 7]))",
+  "note": "On sorted input the sum tells you which pointer to move, so no inner loop is needed."
+ },
+ {
+  "id": "python/dsa/window-counter",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "sliding-window",
+   "counter"
+  ],
+  "code": "from collections import Counter\n\ndef find_anagrams(s, pattern):\n    need, window = Counter(pattern), Counter()\n    k, out = len(pattern), []\n    for i, ch in enumerate(s):\n        window[ch] += 1\n        if i >= k:\n            drop = s[i - k]\n            window[drop] -= 1\n            if window[drop] == 0:\n                del window[drop]\n        if window == need:\n            out.append(i - k + 1)\n    return out\n\nprint(find_anagrams(\"cbaebabacd\", \"abc\"))",
+  "note": "Track how many characters are already satisfied, so the check stays O(1) per step."
+ },
+ {
+  "id": "python/dsa/window-fixed",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 2,
+  "tags": [
+   "sliding-window",
+   "fixed"
+  ],
+  "code": "def max_window_sum(xs, k):\n    cur = sum(xs[:k])\n    best = cur\n    for i in range(k, len(xs)):\n        cur += xs[i] - xs[i - k]\n        best = max(best, cur)\n    return best\n\ndef averages(xs, k):\n    cur, out = sum(xs[:k]), []\n    out.append(cur / k)\n    for i in range(k, len(xs)):\n        cur += xs[i] - xs[i - k]\n        out.append(cur / k)\n    return out\n\nprint(max_window_sum([2, 1, 5, 1, 3, 2], 3), averages([1, 2, 3, 4], 2))",
+  "note": "Add the entering element, subtract the leaving one; never re-sum the window."
+ },
+ {
+  "id": "python/dsa/window-variable",
+  "lang": "python",
+  "topic": "dsa",
+  "tier": 3,
+  "tags": [
+   "sliding-window",
+   "variable"
+  ],
+  "code": "def longest_at_most_k_distinct(s, k):\n    counts, left, best = {}, 0, 0\n    for right, ch in enumerate(s):\n        counts[ch] = counts.get(ch, 0) + 1\n        while len(counts) > k:\n            counts[s[left]] -= 1\n            if counts[s[left]] == 0:\n                del counts[s[left]]\n            left += 1\n        best = max(best, right - left + 1)\n    return best\n\ndef min_subarray_at_least(xs, target):\n    left, cur, best = 0, 0, len(xs) + 1\n    for right, x in enumerate(xs):\n        cur += x\n        while cur >= target:\n            best = min(best, right - left + 1)\n            cur -= xs[left]\n            left += 1\n    return best if best <= len(xs) else 0\n\nprint(longest_at_most_k_distinct(\"eceba\", 2), min_subarray_at_least([2, 3, 1, 2, 4, 3], 7))",
+  "note": "Grow on the right unconditionally, then shrink from the left until the invariant holds."
+ }
+]

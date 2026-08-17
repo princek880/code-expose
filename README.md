@@ -92,18 +92,31 @@ type.
 
 ## Snippets
 
-Ten snippets are embedded in the file, so the engine is fully usable with no
-corpus on disk: 5 Python, 5 C++, tiers 1–4, with heavy coverage of `{}`, `<>`,
-`::`, `->`, `**kwargs`, and `[&]`.
+Ten snippets are embedded in `index.html` itself, so the engine is fully
+usable with no corpus on disk: 5 Python, 5 C++, tiers 1–4, with heavy
+coverage of `{}`, `<>`, `::`, `->`, `**kwargs`, and `[&]`.
 
-A larger corpus is optional. When served over http(s), the page fetches
-`./dist/index.json` — an array of shard paths, resolved relative to `dist/` —
-then fetches and merges those shards. On any failure it stays on the embedded
-set silently.
+The real corpus lives in `snippets/` — 480 snippets (319 Python, 161 C++)
+across 16 topics per [`CONTENT.md`](CONTENT.md), which also documents how
+every one of them was verified (executed, differentially tested against
+brute force, compiled and run under ASan/UBSan, or — for the CUDA track,
+where no compiler is available here — typed end-to-end through the real
+engine). `dist/` is the built, committed output; regenerate it after editing
+`snippets/` with:
 
 ```
-dist/index.json          ["shards/python.json", "shards/cpp.json"]
-dist/shards/python.json  [ {snippet}, {snippet}, ... ]
+node tools/build.mjs            # validates every snippet, writes dist/
+node tools/build.mjs --check    # validate only, for CI
+```
+
+When served over http(s), the page fetches `./dist/index.json` — an array of
+shard paths, resolved relative to `dist/` — then fetches and merges those
+shards, replacing the embedded ten. On any failure (including `file://`,
+where the fetch is skipped outright) it stays on the embedded set silently.
+
+```
+dist/index.json          ["shards/python-core-syntax.json", ...]
+dist/shards/python-core-syntax.json   [ {snippet}, {snippet}, ... ]
 ```
 
 A snippet:

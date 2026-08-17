@@ -1,0 +1,273 @@
+[
+ {
+  "id": "python/functional-meta/abc-abstractmethod",
+  "lang": "python",
+  "topic": "functional-meta",
+  "tier": 3,
+  "tags": [
+   "abc",
+   "abstractmethod",
+   "interface"
+  ],
+  "code": "from abc import ABC, abstractmethod\n\nclass Store(ABC):\n    @abstractmethod\n    def get(self, key): ...\n\n    @abstractmethod\n    def put(self, key, value): ...\n\n    def get_or(self, key, default=None):\n        try:\n            return self.get(key)\n        except KeyError:\n            return default\n\nclass MemoryStore(Store):\n    def __init__(self):\n        self.data = {}\n\n    def get(self, key):\n        return self.data[key]\n\n    def put(self, key, value):\n        self.data[key] = value\n\ns = MemoryStore()\ns.put(\"a\", 1)\nprint(s.get(\"a\"), s.get_or(\"b\", \"missing\"))\ntry:\n    Store()\nexcept TypeError as e:\n    print(type(e).__name__)",
+  "note": "An ABC with an abstract method cannot be instantiated, which turns a contract into a hard error."
+ },
+ {
+  "id": "python/functional-meta/asyncio-await",
+  "lang": "python",
+  "topic": "functional-meta",
+  "tier": 3,
+  "tags": [
+   "asyncio",
+   "await",
+   "coroutine"
+  ],
+  "code": "import asyncio\n\nasync def fetch(name, delay):\n    await asyncio.sleep(delay)\n    return f\"{name}:{delay}\"\n\nasync def main():\n    single = await fetch(\"a\", 0.01)\n    coro = fetch(\"b\", 0.01)\n    print(single, type(coro).__name__)\n    return await coro\n\nprint(asyncio.run(main()))",
+  "note": "A coroutine does nothing until awaited or scheduled; calling it just builds the object."
+ },
+ {
+  "id": "python/functional-meta/asyncio-context-manager",
+  "lang": "python",
+  "topic": "functional-meta",
+  "tier": 3,
+  "tags": [
+   "asyncio",
+   "async-context-manager"
+  ],
+  "code": "import asyncio\nfrom contextlib import asynccontextmanager\n\nclass Pool:\n    def __init__(self, size):\n        self.size, self.open = size, 0\n\n    async def __aenter__(self):\n        await asyncio.sleep(0)\n        self.open += 1\n        return self\n\n    async def __aexit__(self, *exc):\n        self.open -= 1\n        return False\n\n@asynccontextmanager\nasync def timed(label):\n    yield label.upper()\n\nasync def main():\n    pool = Pool(4)\n    async with pool as p, timed(\"op\") as tag:\n        return p.open, tag\n\nprint(asyncio.run(main()))",
+  "note": "__aenter__ and __aexit__ are the async twins of the with protocol, and both must be coroutines."
+ },
+ {
+  "id": "python/functional-meta/asyncio-gather",
+  "lang": "python",
+  "topic": "functional-meta",
+  "tier": 3,
+  "tags": [
+   "asyncio",
+   "gather",
+   "concurrency"
+  ],
+  "code": "import asyncio, time\n\nasync def work(n):\n    await asyncio.sleep(0.05 / n)\n    return n * n\n\nasync def main():\n    t0 = time.perf_counter()\n    results = await asyncio.gather(*(work(n) for n in (1, 2, 4, 5)))\n    elapsed = time.perf_counter() - t0\n    mixed = await asyncio.gather(work(1), asyncio.sleep(0, result=\"x\"), return_exceptions=True)\n    return results, elapsed < 0.2, mixed\n\nprint(asyncio.run(main()))",
+  "note": "gather preserves argument order in its results, not completion order, and cancels the rest on error."
+ },
+ {
+  "id": "python/functional-meta/asyncio-generator",
+  "lang": "python",
+  "topic": "functional-meta",
+  "tier": 3,
+  "tags": [
+   "asyncio",
+   "async-generator",
+   "aiter"
+  ],
+  "code": "import asyncio\n\nasync def ticker(n, delay=0.005):\n    for i in range(n):\n        await asyncio.sleep(delay)\n        yield i\n\nasync def main():\n    out = [v async for v in ticker(4)]\n    doubled = [v * 2 async for v in ticker(3) if v]\n    agen = ticker(2)\n    first = await anext(agen)\n    await agen.aclose()\n    return out, doubled, first\n\nprint(asyncio.run(main()))",
+  "note": "An async generator is consumed with async for, and it can await between yields."
+ },
+ {
+  "id": "python/functional-meta/asyncio-semaphore",
+  "lang": "python",
+  "topic": "functional-meta",
+  "tier": 3,
+  "tags": [
+   "asyncio",
+   "semaphore",
+   "rate-limit"
+  ],
+  "code": "import asyncio\n\nasync def limited(sem, n, seen):\n    async with sem:\n        seen.append(len(seen))\n        await asyncio.sleep(0.01)\n        return n\n\nasync def main(limit=3):\n    sem = asyncio.Semaphore(limit)\n    peak, seen = 0, []\n    tasks = [asyncio.create_task(limited(sem, n, seen)) for n in range(9)]\n    done = await asyncio.gather(*tasks)\n    return done, sem._value == limit\n\nprint(asyncio.run(main()))",
+  "note": "A semaphore caps concurrency; without one, gather over 10k tasks opens 10k sockets at once."
+ },
+ {
+  "id": "python/functional-meta/asyncio-taskgroup",
+  "lang": "python",
+  "topic": "functional-meta",
+  "tier": 4,
+  "tags": [
+   "asyncio",
+   "taskgroup",
+   "structured-concurrency"
+  ],
+  "code": "import asyncio\n\nasync def work(n):\n    await asyncio.sleep(0.01 * n)\n    return n\n\nasync def main():\n    async with asyncio.TaskGroup() as tg:\n        tasks = [tg.create_task(work(n)) for n in (3, 1, 2)]\n    return [t.result() for t in tasks]\n\nasync def failing():\n    caught = 0\n    try:\n        async with asyncio.TaskGroup() as tg:\n            tg.create_task(work(5))\n            tg.create_task(asyncio.sleep(0, result=None))\n            raise RuntimeError(\"abort\")\n    except* RuntimeError as eg:\n        caught = len(eg.exceptions)\n    return caught\n\nprint(asyncio.run(main()), asyncio.run(failing()))",
+  "note": "A TaskGroup will not exit until every child finishes, and one failure cancels the siblings."
+ },
+ {
+  "id": "python/functional-meta/closures",
+  "lang": "python",
+  "topic": "functional-meta",
+  "tier": 2,
+  "tags": [
+   "functional",
+   "closure",
+   "nonlocal"
+  ],
+  "code": "def make_counter(start=0):\n    count = start\n\n    def bump(step=1):\n        nonlocal count\n        count += step\n        return count\n\n    return bump\n\nc = make_counter(10)\nprint(c(), c(5), c.__closure__[0].cell_contents)\n\nlate = [lambda: i for i in range(3)]\nearly = [lambda i=i: i for i in range(3)]\nprint([f() for f in late], [f() for f in early])",
+  "note": "A closure captures the variable, not its value, which is why the late-binding loop trap exists."
+ },
+ {
+  "id": "python/functional-meta/currying-partial",
+  "lang": "python",
+  "topic": "functional-meta",
+  "tier": 3,
+  "tags": [
+   "functional",
+   "currying",
+   "partial"
+  ],
+  "code": "from functools import partial, reduce\n\ndef curry3(fn):\n    return lambda a: lambda b: lambda c: fn(a, b, c)\n\ndef volume(w, h, d):\n    return w * h * d\n\ncurried = curry3(volume)\nprint(curried(2)(3)(4), volume(2, 3, 4))\n\nbase10 = partial(int, base=10)\nbase16 = partial(int, base=16)\nprint(base10(\"42\"), base16(\"2a\"), partial(reduce, lambda a, b: a * b)([1, 2, 3, 4]))",
+  "note": "Currying turns one n-argument call into n one-argument calls; partial just pre-fills some of them."
+ },
+ {
+  "id": "python/functional-meta/descriptors",
+  "lang": "python",
+  "topic": "functional-meta",
+  "tier": 4,
+  "tags": [
+   "descriptor",
+   "get",
+   "set"
+  ],
+  "code": "class Typed:\n    def __init__(self, expected):\n        self.expected = expected\n\n    def __set_name__(self, owner, name):\n        self.private = \"_\" + name\n\n    def __get__(self, obj, objtype=None):\n        if obj is None:\n            return self\n        return getattr(obj, self.private)\n\n    def __set__(self, obj, value):\n        if not isinstance(value, self.expected):\n            raise TypeError(f\"expected {self.expected.__name__}\")\n        setattr(obj, self.private, value)\n\nclass Point:\n    x = Typed(int)\n    y = Typed(int)\n\n    def __init__(self, x, y):\n        self.x, self.y = x, y\n\np = Point(1, 2)\nprint(p.x, p.y, isinstance(Point.x, Typed))",
+  "note": "__set_name__ tells the descriptor which attribute it was assigned to, so no name duplication."
+ },
+ {
+  "id": "python/functional-meta/dunder-new",
+  "lang": "python",
+  "topic": "functional-meta",
+  "tier": 4,
+  "tags": [
+   "metaclass",
+   "new",
+   "immutable"
+  ],
+  "code": "class Singleton:\n    _instance = None\n\n    def __new__(cls, *args):\n        if cls._instance is None:\n            cls._instance = super().__new__(cls)\n        return cls._instance\n\nclass Positive(int):\n    def __new__(cls, value):\n        if value <= 0:\n            raise ValueError(\"must be positive\")\n        return super().__new__(cls, value)\n\nprint(Singleton() is Singleton(), Positive(5) + 1, type(Positive(5)).__name__)",
+  "note": "__new__ builds the instance and runs before __init__, which is how you subclass immutables."
+ },
+ {
+  "id": "python/functional-meta/function-composition",
+  "lang": "python",
+  "topic": "functional-meta",
+  "tier": 3,
+  "tags": [
+   "functional",
+   "composition",
+   "pipeline"
+  ],
+  "code": "from functools import reduce\n\ndef compose(*fns):\n    return reduce(lambda f, g: lambda x: f(g(x)), fns)\n\ndef pipe(*fns):\n    return reduce(lambda f, g: lambda x: g(f(x)), fns)\n\ninc = lambda n: n + 1\ndouble = lambda n: n * 2\nshow = lambda n: f\"<{n}>\"\n\nprint(compose(show, double, inc)(3))\nprint(pipe(inc, double, show)(3))\nprint(compose(*[inc] * 5)(0), pipe(str, len)(12345))",
+  "note": "compose applies right to left; pipe applies left to right. Pick one and never mix them."
+ },
+ {
+  "id": "python/functional-meta/immutability",
+  "lang": "python",
+  "topic": "functional-meta",
+  "tier": 2,
+  "tags": [
+   "functional",
+   "immutability",
+   "frozen"
+  ],
+  "code": "from dataclasses import dataclass, replace\nfrom types import MappingProxyType\n\n@dataclass(frozen=True)\nclass Config:\n    host: str\n    port: int\n    flags: tuple[str, ...] = ()\n\nbase = Config(\"localhost\", 80)\nupdated = replace(base, port=443, flags=base.flags + (\"tls\",))\nprint(base, updated, base is not updated)\nview = MappingProxyType({\"a\": 1})\nprint(view[\"a\"], hash(base) == hash(Config(\"localhost\", 80)))",
+  "note": "Immutable values are hashable and safe to share; every \"change\" returns a new object."
+ },
+ {
+  "id": "python/functional-meta/init-subclass",
+  "lang": "python",
+  "topic": "functional-meta",
+  "tier": 3,
+  "tags": [
+   "init-subclass",
+   "hooks"
+  ],
+  "code": "class Handler:\n    registry = {}\n\n    def __init_subclass__(cls, route=None, **kwargs):\n        super().__init_subclass__(**kwargs)\n        if route:\n            Handler.registry[route] = cls\n\n    def handle(self):\n        return type(self).__name__\n\nclass Home(Handler, route=\"/\"):\n    pass\n\nclass About(Handler, route=\"/about\"):\n    pass\n\nprint(sorted(Handler.registry), Handler.registry[\"/about\"]().handle())",
+  "note": "__init_subclass__ gives you a metaclass's registration hook without writing a metaclass."
+ },
+ {
+  "id": "python/functional-meta/map-filter-reduce",
+  "lang": "python",
+  "topic": "functional-meta",
+  "tier": 2,
+  "tags": [
+   "functional",
+   "map",
+   "reduce"
+  ],
+  "code": "from functools import reduce\nfrom operator import add, mul\n\nnums = [1, 2, 3, 4, 5, 6]\nprint(list(map(str, nums)), list(filter(lambda n: n % 2 == 0, nums)))\nprint(reduce(add, nums), reduce(mul, nums, 1))\nprint(reduce(lambda acc, n: acc + [acc[-1] + n], nums[1:], [nums[0]]))\nprint(list(map(pow, nums, [2] * len(nums))))\nprint(sum(map(len, map(str, nums))))",
+  "note": "map and filter are lazy iterators; a comprehension is usually clearer unless the function exists already."
+ },
+ {
+  "id": "python/functional-meta/memoize-decorator",
+  "lang": "python",
+  "topic": "functional-meta",
+  "tier": 3,
+  "tags": [
+   "functional",
+   "memoize",
+   "decorator"
+  ],
+  "code": "from functools import wraps\n\ndef memoize(fn):\n    cache = {}\n\n    @wraps(fn)\n    def inner(*args, **kwargs):\n        key = (args, tuple(sorted(kwargs.items())))\n        if key not in cache:\n            cache[key] = fn(*args, **kwargs)\n        return cache[key]\n\n    inner.cache = cache\n    inner.clear = cache.clear\n    return inner\n\n@memoize\ndef ackermann(m, n):\n    if m == 0:\n        return n + 1\n    if n == 0:\n        return ackermann(m - 1, 1)\n    return ackermann(m - 1, ackermann(m, n - 1))\n\nprint(ackermann(2, 3), len(ackermann.cache) > 5, ackermann(m=2, n=3))",
+  "note": "Keying on args plus sorted kwargs makes the cache correct for keyword calls too."
+ },
+ {
+  "id": "python/functional-meta/metaclass",
+  "lang": "python",
+  "topic": "functional-meta",
+  "tier": 4,
+  "tags": [
+   "metaclass",
+   "type",
+   "registry"
+  ],
+  "code": "class Registry(type):\n    plugins = {}\n\n    def __new__(mcls, name, bases, ns, **kwargs):\n        cls = super().__new__(mcls, name, bases, ns)\n        if bases:\n            Registry.plugins[ns.get(\"key\", name.lower())] = cls\n        return cls\n\nclass Plugin(metaclass=Registry):\n    pass\n\nclass JsonPlugin(Plugin):\n    key = \"json\"\n\nclass CsvPlugin(Plugin):\n    key = \"csv\"\n\nprint(sorted(Registry.plugins), type(Plugin), isinstance(JsonPlugin, Registry))",
+  "note": "A metaclass runs at class creation, so it is the hook for registration and validation."
+ },
+ {
+  "id": "python/functional-meta/mixins-mro",
+  "lang": "python",
+  "topic": "functional-meta",
+  "tier": 4,
+  "tags": [
+   "mixin",
+   "mro",
+   "super"
+  ],
+  "code": "class Base:\n    def run(self):\n        return [\"base\"]\n\nclass Logged:\n    def run(self):\n        return [\"logged\"] + super().run()\n\nclass Timed:\n    def run(self):\n        return [\"timed\"] + super().run()\n\nclass Job(Logged, Timed, Base):\n    def run(self):\n        return [\"job\"] + super().run()\n\nprint(Job().run())\nprint([c.__name__ for c in Job.__mro__])\nprint(Job.__mro__.index(Timed) < Job.__mro__.index(Base))",
+  "note": "super() follows the MRO, not the base class, which is what makes cooperative mixins work."
+ },
+ {
+  "id": "python/functional-meta/property",
+  "lang": "python",
+  "topic": "functional-meta",
+  "tier": 2,
+  "tags": [
+   "property",
+   "encapsulation",
+   "cached-property"
+  ],
+  "code": "from functools import cached_property\n\nclass Circle:\n    def __init__(self, radius):\n        self._radius = radius\n\n    @property\n    def radius(self):\n        return self._radius\n\n    @radius.setter\n    def radius(self, value):\n        if value < 0:\n            raise ValueError(\"negative radius\")\n        self._radius = value\n        self.__dict__.pop(\"area\", None)\n\n    @cached_property\n    def area(self):\n        return 3.141592653589793 * self._radius ** 2\n\nc = Circle(2)\nprint(round(c.area, 4), \"area\" in c.__dict__)\nc.radius = 3\nprint(round(c.area, 4))",
+  "note": "cached_property stores the result in the instance dict, so it needs no __slots__ conflict."
+ },
+ {
+  "id": "python/functional-meta/pure-functions",
+  "lang": "python",
+  "topic": "functional-meta",
+  "tier": 2,
+  "tags": [
+   "functional",
+   "purity",
+   "side-effects"
+  ],
+  "code": "from functools import lru_cache\n\nTOTALS = []\n\ndef impure(xs):\n    TOTALS.append(sum(xs))\n    xs.append(0)\n    return TOTALS[-1]\n\n@lru_cache(maxsize=None)\ndef pure(xs):\n    return sum(xs)\n\ndata = [1, 2, 3]\nprint(impure(data), data, TOTALS)\nfrozen = (1, 2, 3)\nprint(pure(frozen), pure(frozen), pure.cache_info().hits)",
+  "note": "A pure function's output depends only on its arguments, which is what makes it testable and cacheable."
+ },
+ {
+  "id": "python/functional-meta/slots",
+  "lang": "python",
+  "topic": "functional-meta",
+  "tier": 3,
+  "tags": [
+   "slots",
+   "memory",
+   "attributes"
+  ],
+  "code": "class WithDict:\n    def __init__(self, x):\n        self.x = x\n\nclass WithSlots:\n    __slots__ = (\"x\", \"y\")\n\n    def __init__(self, x, y=0):\n        self.x, self.y = x, y\n\na, b = WithDict(1), WithSlots(1)\na.typo = 2\nprint(a.__dict__, hasattr(b, \"__dict__\"))\ntry:\n    b.typo = 3\nexcept AttributeError as e:\n    print(type(e).__name__, WithSlots.__slots__)",
+  "note": "__slots__ removes __dict__, so typos raise AttributeError instead of creating a new field."
+ }
+]

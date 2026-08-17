@@ -1,0 +1,606 @@
+[
+ {
+  "id": "python/numerical/integrate-gauss-legendre",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 4,
+  "tags": [
+   "integration",
+   "gauss-legendre",
+   "quadrature"
+  ],
+  "code": "import numpy as np\n\ndef gauss_legendre(f, a, b, n=5):\n    nodes, weights = np.polynomial.legendre.leggauss(n)\n    mid, half = (a + b) / 2, (b - a) / 2\n    return half * np.sum(weights * np.array([f(mid + half * x) for x in nodes]))\n\nprint(f\"{gauss_legendre(np.sin, 0, np.pi, 5):.12f}\")\nprint(f\"{gauss_legendre(lambda x: x ** 5 - 3 * x ** 2, -1, 2, 3):.12f}\")\nprint(f\"{gauss_legendre(np.exp, 0, 1, 8) - (np.e - 1):.2e}\")",
+  "note": "n nodes integrate polynomials up to degree 2n-1 exactly, after mapping [a,b] to [-1,1]."
+ },
+ {
+  "id": "python/numerical/integrate-monte-carlo",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 3,
+  "tags": [
+   "integration",
+   "monte-carlo",
+   "variance"
+  ],
+  "code": "import numpy as np\n\ndef mc_integrate(f, lo, hi, n=100000, seed=0):\n    rng = np.random.default_rng(seed)\n    lo, hi = np.atleast_1d(lo), np.atleast_1d(hi)\n    pts = rng.uniform(lo, hi, size=(n, len(lo)))\n    vals = f(pts)\n    volume = np.prod(hi - lo)\n    return volume * vals.mean(), volume * vals.std(ddof=1) / np.sqrt(n)\n\nest, err = mc_integrate(lambda p: np.exp(-(p ** 2).sum(axis=1)), [-2, -2], [2, 2])\nprint(f\"{est:.5f} +- {err:.5f}\")\nsphere, _ = mc_integrate(lambda p: ((p ** 2).sum(axis=1) <= 1).astype(float), [-1] * 3, [1] * 3)\nprint(f\"{sphere:.4f}\", f\"{4 / 3 * np.pi:.4f}\")",
+  "note": "Error falls like 1/sqrt(n) regardless of dimension, which is why it wins in high dimensions."
+ },
+ {
+  "id": "python/numerical/integrate-trapezoid-simpson",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 2,
+  "tags": [
+   "integration",
+   "trapezoid",
+   "simpson"
+  ],
+  "code": "def trapezoid(f, a, b, n=1000):\n    h = (b - a) / n\n    total = (f(a) + f(b)) / 2\n    for i in range(1, n):\n        total += f(a + i * h)\n    return total * h\n\ndef simpson(f, a, b, n=1000):\n    if n % 2:\n        n += 1\n    h = (b - a) / n\n    total = f(a) + f(b)\n    for i in range(1, n):\n        total += f(a + i * h) * (4 if i % 2 else 2)\n    return total * h / 3\n\nimport math\nprint(f\"{trapezoid(math.sin, 0, math.pi):.10f}\")\nprint(f\"{simpson(math.sin, 0, math.pi):.10f}\")",
+  "note": "Simpson needs an even number of intervals, and it is exact for cubics."
+ },
+ {
+  "id": "python/numerical/linalg-gaussian-elimination",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 3,
+  "tags": [
+   "linalg",
+   "gaussian-elimination",
+   "pivoting"
+  ],
+  "code": "import numpy as np\n\ndef solve(A, b):\n    M = np.hstack([A.astype(float), b.astype(float).reshape(-1, 1)])\n    n = len(b)\n    for col in range(n):\n        pivot = np.argmax(np.abs(M[col:, col])) + col\n        M[[col, pivot]] = M[[pivot, col]]\n        M[col] /= M[col, col]\n        for row in range(n):\n            if row != col:\n                M[row] -= M[row, col] * M[col]\n    return M[:, -1]\n\nA = np.array([[2.0, 1, -1], [-3, -1, 2], [-2, 1, 2]])\nb = np.array([8.0, -11, -3])\nprint(solve(A, b).round(6), np.allclose(A @ solve(A, b), b))",
+  "note": "Partial pivoting is not optional: without it a zero pivot divides by zero on exact input."
+ },
+ {
+  "id": "python/numerical/linalg-gram-schmidt",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 3,
+  "tags": [
+   "linalg",
+   "qr",
+   "gram-schmidt"
+  ],
+  "code": "import numpy as np\n\ndef qr(A):\n    A = np.array(A, dtype=float)\n    n, m = A.shape\n    Q, R = np.zeros((n, m)), np.zeros((m, m))\n    for j in range(m):\n        v = A[:, j].copy()\n        for i in range(j):\n            R[i, j] = Q[:, i] @ v\n            v -= R[i, j] * Q[:, i]\n        R[j, j] = np.linalg.norm(v)\n        Q[:, j] = v / R[j, j]\n    return Q, R\n\nA = np.array([[1.0, 1, 0], [1, 0, 1], [0, 1, 1]])\nQ, R = qr(A)\nprint(np.allclose(Q @ R, A), np.allclose(Q.T @ Q, np.eye(3)))",
+  "note": "Modified Gram-Schmidt subtracts as it goes, which loses far less orthogonality than classical."
+ },
+ {
+  "id": "python/numerical/linalg-jacobi-gauss-seidel",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 3,
+  "tags": [
+   "linalg",
+   "iterative-solver",
+   "jacobi"
+  ],
+  "code": "import numpy as np\n\ndef jacobi(A, b, iters=200):\n    D = np.diag(A)\n    R = A - np.diag(D)\n    x = np.zeros_like(b, dtype=float)\n    for _ in range(iters):\n        x = (b - R @ x) / D\n    return x\n\ndef gauss_seidel(A, b, iters=200):\n    n, x = len(b), np.zeros_like(b, dtype=float)\n    for _ in range(iters):\n        for i in range(n):\n            x[i] = (b[i] - A[i, :i] @ x[:i] - A[i, i + 1:] @ x[i + 1:]) / A[i, i]\n    return x\n\nA = np.array([[4.0, -1, 0], [-1, 4, -1], [0, -1, 3]])\nb = np.array([15.0, 10, 10])\nprint(jacobi(A, b).round(6), np.allclose(jacobi(A, b), gauss_seidel(A, b)))",
+  "note": "Jacobi uses the previous sweep everywhere; Gauss-Seidel reuses updates within the sweep."
+ },
+ {
+  "id": "python/numerical/linalg-lu",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 3,
+  "tags": [
+   "linalg",
+   "lu",
+   "doolittle"
+  ],
+  "code": "import numpy as np\n\ndef lu(A):\n    n = len(A)\n    L, U = np.eye(n), np.array(A, dtype=float)\n    for col in range(n):\n        for row in range(col + 1, n):\n            factor = U[row, col] / U[col, col]\n            L[row, col] = factor\n            U[row] -= factor * U[col]\n    return L, U\n\nA = np.array([[4.0, 3], [6, 3]])\nL, U = lu(A)\nprint(L.round(4), U.round(4), np.allclose(L @ U, A))",
+  "note": "Doolittle stores L below the diagonal and U on and above it, in one matrix if you want."
+ },
+ {
+  "id": "python/numerical/linalg-power-iteration",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 3,
+  "tags": [
+   "linalg",
+   "eigenvalue",
+   "power-iteration"
+  ],
+  "code": "import numpy as np\n\ndef dominant(A, iters=500, tol=1e-12):\n    v = np.ones(len(A)) / np.sqrt(len(A))\n    lam = 0.0\n    for _ in range(iters):\n        w = A @ v\n        nxt = np.linalg.norm(w)\n        v_new = w / nxt\n        if abs(nxt - lam) < tol:\n            return nxt, v_new\n        lam, v = nxt, v_new\n    return lam, v\n\nA = np.array([[2.0, 1], [1, 3]])\nlam, v = dominant(A)\nprint(round(lam, 6), np.allclose(A @ v, lam * v, atol=1e-6))\nprint(sorted(np.linalg.eigvals(A).round(6)))",
+  "note": "Power iteration converges to the dominant eigenvector at a rate set by the eigenvalue gap."
+ },
+ {
+  "id": "python/numerical/linalg-svd-condition",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 3,
+  "tags": [
+   "linalg",
+   "svd",
+   "condition-number"
+  ],
+  "code": "import numpy as np\n\nA = np.array([[1.0, 2, 3], [4, 5, 6], [7, 8, 9.0001]])\nU, s, Vt = np.linalg.svd(A)\nprint(s.round(4), U.shape, Vt.shape)\nprint(np.allclose(U @ np.diag(s) @ Vt, A))\nprint(f\"{s[0] / s[-1]:.4g}\", f\"{np.linalg.cond(A):.4g}\")\nrank_1 = np.outer(U[:, 0], Vt[0]) * s[0]\nprint(np.linalg.norm(A - rank_1) / np.linalg.norm(A))",
+  "note": "The condition number is the ratio of extreme singular values, and it bounds the error growth."
+ },
+ {
+  "id": "python/numerical/numpy-axis-reductions",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 2,
+  "tags": [
+   "numpy",
+   "reductions",
+   "axis"
+  ],
+  "code": "import numpy as np\n\na = np.arange(24).reshape(2, 3, 4)\nprint(a.sum(axis=0).shape, a.sum(axis=(0, 2)).shape, a.sum(keepdims=True).shape)\nprint(a.mean(axis=1), a.std(axis=2).round(3))\ncentred = a - a.mean(axis=-1, keepdims=True)\nprint(np.allclose(centred.mean(axis=-1), 0))\nprint(a.argmax(axis=1), np.ptp(a, axis=0))",
+  "note": "axis is the axis that disappears; keepdims keeps it at length 1 so broadcasting still works."
+ },
+ {
+  "id": "python/numerical/numpy-boolean-masking",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 2,
+  "tags": [
+   "numpy",
+   "masking"
+  ],
+  "code": "import numpy as np\n\na = np.arange(-5, 6)\nmask = (a % 2 == 0) & (a > -4)\nprint(a[mask], mask.sum(), np.flatnonzero(mask))\na[a < 0] = 0\nprint(a)\nb = np.arange(9).reshape(3, 3)\nb[b % 3 == 0] *= -1\nprint(b, np.count_nonzero(b < 0))",
+  "note": "A boolean index returns a copy; a slice returns a view. Assignment through either writes back."
+ },
+ {
+  "id": "python/numerical/numpy-broadcasting",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 2,
+  "tags": [
+   "numpy",
+   "broadcasting"
+  ],
+  "code": "import numpy as np\n\na = np.arange(12).reshape(3, 4)\ncol = np.array([[10], [20], [30]])\nrow = np.array([1, 2, 3, 4])\nprint(a + col)\nprint(a * row)\nprint((a[:, None, :] + a[None, :, :]).shape)\nprint(np.broadcast_shapes((3, 1, 4), (1, 5, 4)))",
+  "note": "Shapes align from the right; a length-1 axis stretches, anything else is an error."
+ },
+ {
+  "id": "python/numerical/numpy-einsum",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 4,
+  "tags": [
+   "numpy",
+   "einsum",
+   "tensor"
+  ],
+  "code": "import numpy as np\n\nA = np.arange(6).reshape(2, 3).astype(float)\nB = np.arange(12).reshape(3, 4).astype(float)\nv = np.arange(3).astype(float)\n\nprint(np.allclose(np.einsum(\"ij,jk->ik\", A, B), A @ B))\nprint(np.allclose(np.einsum(\"ij,j->i\", A, v), A @ v))\nprint(np.allclose(np.einsum(\"ii->i\", np.eye(3)), np.ones(3)))\nprint(np.allclose(np.einsum(\"ij->\", A), A.sum()))\nprint(np.einsum(\"ij,ij->i\", A, A))\nprint(np.einsum(\"i,j->ij\", v, v).shape)",
+  "note": "Repeated indices contract, omitted output indices sum out. That is the whole rule."
+ },
+ {
+  "id": "python/numerical/numpy-fancy-indexing",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 3,
+  "tags": [
+   "numpy",
+   "fancy-indexing"
+  ],
+  "code": "import numpy as np\n\na = np.arange(20).reshape(4, 5)\nrows = np.array([0, 2, 3])\ncols = np.array([1, 4, 0])\nprint(a[rows, cols])\nprint(a[rows[:, None], cols[None, :]])\nprint(a[np.ix_(rows, cols)])\nprint(np.take_along_axis(a, a.argmax(axis=1)[:, None], axis=1).ravel())",
+  "note": "Integer arrays broadcast against each other, so the result shape is the index shape."
+ },
+ {
+  "id": "python/numerical/numpy-meshgrid",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 3,
+  "tags": [
+   "numpy",
+   "meshgrid",
+   "grid"
+  ],
+  "code": "import numpy as np\n\nxs = np.linspace(-1, 1, 5)\nys = np.linspace(0, 2, 3)\nX, Y = np.meshgrid(xs, ys, indexing=\"xy\")\nprint(X.shape, Y.shape)\nZ = np.exp(-(X ** 2 + Y ** 2))\nprint(Z.shape, Z.max().round(4), np.unravel_index(Z.argmax(), Z.shape))\nI, J = np.meshgrid(xs, ys, indexing=\"ij\")\nprint(I.shape, np.allclose(I, X.T))",
+  "note": "indexing=\"ij\" matches matrix convention; the default \"xy\" swaps the first two axes."
+ },
+ {
+  "id": "python/numerical/numpy-reshape-transpose",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 2,
+  "tags": [
+   "numpy",
+   "reshape",
+   "transpose"
+  ],
+  "code": "import numpy as np\n\na = np.arange(24)\nb = a.reshape(2, 3, 4)\nprint(b.transpose(2, 0, 1).shape, b.swapaxes(0, 2).shape, b.T.shape)\nprint(b.reshape(-1, 4).shape, b.ravel().base is a)\nprint(np.ascontiguousarray(b.T).flags[\"C_CONTIGUOUS\"])\nprint(b.reshape(6, 4)[::2].strides, b.squeeze().ndim)",
+  "note": "reshape needs a compatible stride layout; transpose only relabels axes, it copies nothing."
+ },
+ {
+  "id": "python/numerical/numpy-stride-tricks",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 4,
+  "tags": [
+   "numpy",
+   "strides",
+   "views"
+  ],
+  "code": "import numpy as np\nfrom numpy.lib.stride_tricks import sliding_window_view, as_strided\n\na = np.arange(10)\nw = sliding_window_view(a, 4)\nprint(w.shape, w[0], w.sum(axis=1))\n\ns = as_strided(a, shape=(4, 3), strides=(a.itemsize, a.itemsize))\nprint(s, np.shares_memory(s, a))\nprint(sliding_window_view(np.arange(16).reshape(4, 4), (2, 2)).shape)",
+  "note": "sliding_window_view is a view: writing to it aliases the source in overlapping positions."
+ },
+ {
+  "id": "python/numerical/numpy-vectorize-loop",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 2,
+  "tags": [
+   "numpy",
+   "vectorization"
+  ],
+  "code": "import numpy as np\n\ndef loop_version(xs, ys):\n    out = np.empty(len(xs))\n    for i in range(len(xs)):\n        out[i] = xs[i] ** 2 + 3 * ys[i] - 1\n    return out\n\ndef vector_version(xs, ys):\n    return xs ** 2 + 3 * ys - 1\n\nxs, ys = np.linspace(0, 1, 8), np.linspace(1, 2, 8)\nprint(np.allclose(loop_version(xs, ys), vector_version(xs, ys)))\nprint(np.abs(vector_version(xs, ys)).max())",
+  "note": "The vectorized form allocates once and runs in C; the loop pays interpreter cost per element."
+ },
+ {
+  "id": "python/numerical/numpy-where-select",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 2,
+  "tags": [
+   "numpy",
+   "where",
+   "select"
+  ],
+  "code": "import numpy as np\n\nx = np.linspace(-2, 2, 9)\nprint(np.where(x > 0, x, -x))\nprint(np.select([x < -1, x < 1], [-1, 0], default=1))\nprint(np.piecewise(x, [x < 0, x >= 0], [lambda v: v ** 2, lambda v: v]))\nprint(np.clip(x, -0.5, 0.5).round(2), np.sign(x).astype(int))",
+  "note": "where evaluates both branches; select takes the first true condition in order."
+ },
+ {
+  "id": "python/numerical/ode-adaptive-step",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 4,
+  "tags": [
+   "ode",
+   "adaptive",
+   "error-control"
+  ],
+  "code": "import numpy as np\n\ndef step_rk4(f, t, y, h):\n    k1 = f(t, y)\n    k2 = f(t + h / 2, y + h / 2 * k1)\n    k3 = f(t + h / 2, y + h / 2 * k2)\n    k4 = f(t + h, y + h * k3)\n    return y + h / 6 * (k1 + 2 * k2 + 2 * k3 + k4)\n\ndef adaptive(f, y0, t0, t1, h=0.1, tol=1e-8):\n    t, y, steps = t0, float(y0), 0\n    while t < t1 - 1e-15:\n        h = min(h, t1 - t)\n        big = step_rk4(f, t, y, h)\n        half = step_rk4(f, t + h / 2, step_rk4(f, t, y, h / 2), h / 2)\n        err = abs(half - big) / 15\n        if err < tol or h < 1e-12:\n            t, y = t + h, half\n            steps += 1\n        h *= min(2.0, max(0.2, 0.9 * (tol / (err + 1e-300)) ** 0.2))\n    return y, steps\n\ny, steps = adaptive(lambda t, v: -2 * v, 1.0, 0, 1)\nprint(round(y, 9), round(float(np.exp(-2)), 9), steps < 100)",
+  "note": "Compare one big step against two half steps; the difference estimates the local error."
+ },
+ {
+  "id": "python/numerical/ode-backward-euler",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 3,
+  "tags": [
+   "ode",
+   "implicit",
+   "newton"
+  ],
+  "code": "import numpy as np\n\ndef backward_euler(f, dfdy, y0, t0, t1, h, tol=1e-12):\n    ts, ys = [t0], [float(y0)]\n    while ts[-1] < t1 - 1e-15:\n        t, y = ts[-1] + h, ys[-1]\n        guess = y\n        for _ in range(50):\n            g = guess - y - h * f(t, guess)\n            dg = 1 - h * dfdy(t, guess)\n            step = g / dg\n            guess -= step\n            if abs(step) < tol:\n                break\n        ys.append(guess)\n        ts.append(t)\n    return np.array(ts), np.array(ys)\n\nts, ys = backward_euler(lambda t, y: -50 * y, lambda t, y: -50.0, 1.0, 0, 1, 0.1)\nprint(ys[-1] < 1e-6, np.all(np.abs(ys) <= 1.0))",
+  "note": "The implicit step needs a solve at every stage, which buys unconditional stability."
+ },
+ {
+  "id": "python/numerical/ode-euler",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 2,
+  "tags": [
+   "ode",
+   "euler",
+   "stability"
+  ],
+  "code": "import numpy as np\n\ndef forward_euler(f, y0, t0, t1, h):\n    ts, ys = [t0], [np.array(y0, dtype=float)]\n    while ts[-1] < t1 - 1e-15:\n        y, t = ys[-1], ts[-1]\n        ys.append(y + h * f(t, y))\n        ts.append(t + h)\n    return np.array(ts), np.array(ys)\n\nts, ys = forward_euler(lambda t, y: -2 * y, [1.0], 0, 1, 0.05)\nprint(ts[-1], ys[-1].round(6), round(float(np.exp(-2)), 6))",
+  "note": "Forward Euler is explicit and cheap; its error is O(h) and it goes unstable for stiff systems."
+ },
+ {
+  "id": "python/numerical/ode-rk4",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 3,
+  "tags": [
+   "ode",
+   "runge-kutta",
+   "rk4"
+  ],
+  "code": "import numpy as np\n\ndef rk4(f, y0, t0, t1, h):\n    t, y = t0, np.array(y0, dtype=float)\n    out = [(t, y.copy())]\n    while t < t1 - 1e-15:\n        k1 = f(t, y)\n        k2 = f(t + h / 2, y + h / 2 * k1)\n        k3 = f(t + h / 2, y + h / 2 * k2)\n        k4 = f(t + h, y + h * k3)\n        y = y + h / 6 * (k1 + 2 * k2 + 2 * k3 + k4)\n        t += h\n        out.append((t, y.copy()))\n    return out\n\nharmonic = lambda t, y: np.array([y[1], -y[0]])\npath = rk4(harmonic, [1.0, 0.0], 0, 2 * np.pi, 0.01)\nprint(path[-1][1].round(8), np.cos(2 * np.pi).round(8))",
+  "note": "Four evaluations per step with the 1-2-2-1 weighting gives fourth-order accuracy."
+ },
+ {
+  "id": "python/numerical/optimize-adam",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 3,
+  "tags": [
+   "optimization",
+   "adam",
+   "bias-correction"
+  ],
+  "code": "import numpy as np\n\ndef adam(grad, x0, lr=0.1, b1=0.9, b2=0.999, eps=1e-8, iters=500):\n    x = np.array(x0, dtype=float)\n    m = np.zeros_like(x)\n    v = np.zeros_like(x)\n    for t in range(1, iters + 1):\n        g = grad(x)\n        m = b1 * m + (1 - b1) * g\n        v = b2 * v + (1 - b2) * g ** 2\n        mhat = m / (1 - b1 ** t)\n        vhat = v / (1 - b2 ** t)\n        x -= lr * mhat / (np.sqrt(vhat) + eps)\n    return x\n\nrosen_grad = lambda p: np.array([\n    -400 * p[0] * (p[1] - p[0] ** 2) - 2 * (1 - p[0]),\n    200 * (p[1] - p[0] ** 2),\n])\nprint(adam(rosen_grad, [-1.2, 1.0], lr=0.02, iters=4000).round(4))",
+  "note": "The bias correction matters most in the first few steps, when both moments start at zero."
+ },
+ {
+  "id": "python/numerical/optimize-gradient-descent",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 2,
+  "tags": [
+   "optimization",
+   "gradient-descent"
+  ],
+  "code": "import numpy as np\n\ndef gradient_descent(grad, x0, lr=0.1, iters=500, tol=1e-12):\n    x = np.array(x0, dtype=float)\n    for i in range(iters):\n        g = grad(x)\n        if np.linalg.norm(g) < tol:\n            return x, i\n        x -= lr * g\n    return x, iters\n\nquad_grad = lambda x: np.array([2 * (x[0] - 3), 20 * (x[1] + 1)])\nx, steps = gradient_descent(quad_grad, [0.0, 0.0], lr=0.05)\nprint(x.round(8), steps)",
+  "note": "The step size decides everything: too small crawls, too large diverges along the steep axis."
+ },
+ {
+  "id": "python/numerical/optimize-line-search",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 3,
+  "tags": [
+   "optimization",
+   "line-search",
+   "armijo"
+  ],
+  "code": "import numpy as np\n\ndef armijo(f, grad, x, d, alpha=1.0, c=1e-4, rho=0.5, max_back=60):\n    fx, slope = f(x), grad(x) @ d\n    for _ in range(max_back):\n        if f(x + alpha * d) <= fx + c * alpha * slope:\n            return alpha\n        alpha *= rho\n    return alpha\n\ndef descend(f, grad, x0, iters=200):\n    x = np.array(x0, dtype=float)\n    for _ in range(iters):\n        d = -grad(x)\n        x = x + armijo(f, grad, x, d) * d\n    return x\n\nf = lambda p: (p[0] - 1) ** 2 + 10 * (p[1] + 2) ** 2\ng = lambda p: np.array([2 * (p[0] - 1), 20 * (p[1] + 2)])\nprint(descend(f, g, [5.0, 5.0]).round(8))",
+  "note": "Backtracking halves the step until the Armijo condition holds, so it never needs the Hessian."
+ },
+ {
+  "id": "python/numerical/optimize-momentum-nesterov",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 3,
+  "tags": [
+   "optimization",
+   "momentum",
+   "nesterov"
+  ],
+  "code": "import numpy as np\n\ndef momentum(grad, x0, lr=0.01, beta=0.9, iters=400):\n    x, v = np.array(x0, dtype=float), np.zeros(len(x0))\n    for _ in range(iters):\n        v = beta * v + grad(x)\n        x -= lr * v\n    return x\n\ndef nesterov(grad, x0, lr=0.01, beta=0.9, iters=400):\n    x, v = np.array(x0, dtype=float), np.zeros(len(x0))\n    for _ in range(iters):\n        v = beta * v + grad(x - lr * beta * v)\n        x -= lr * v\n    return x\n\ng = lambda x: np.array([2 * (x[0] - 1), 4 * (x[1] + 2)])\nprint(momentum(g, [0.0, 0.0]).round(6), nesterov(g, [0.0, 0.0]).round(6))",
+  "note": "Nesterov evaluates the gradient at the look-ahead point, which damps the overshoot."
+ },
+ {
+  "id": "python/numerical/optimize-newton-method",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 3,
+  "tags": [
+   "optimization",
+   "newton",
+   "hessian"
+  ],
+  "code": "import numpy as np\n\ndef newton_min(grad, hess, x0, iters=50, tol=1e-13):\n    x = np.array(x0, dtype=float)\n    for i in range(iters):\n        g = grad(x)\n        if np.linalg.norm(g) < tol:\n            return x, i\n        x -= np.linalg.solve(hess(x), g)\n    return x, iters\n\ngrad = lambda p: np.array([4 * p[0] ** 3 - 4 * p[0] + p[1], p[0] + 2 * p[1]])\nhess = lambda p: np.array([[12 * p[0] ** 2 - 4, 1.0], [1.0, 2.0]])\nx, steps = newton_min(grad, hess, [1.5, -0.5])\nprint(x.round(8), steps, np.linalg.norm(grad(x)) < 1e-10)",
+  "note": "Newton's step solves H d = -g, so it needs a positive-definite Hessian to point downhill."
+ },
+ {
+  "id": "python/numerical/optimize-simulated-annealing",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 3,
+  "tags": [
+   "optimization",
+   "annealing",
+   "metropolis"
+  ],
+  "code": "import math, random\n\ndef anneal(cost, neighbour, state, t0=1.0, cooling=0.999, iters=20000, seed=0):\n    rng = random.Random(seed)\n    best = state\n    best_cost = cur_cost = cost(state)\n    temp = t0\n    for _ in range(iters):\n        cand = neighbour(state, rng)\n        cand_cost = cost(cand)\n        delta = cand_cost - cur_cost\n        if delta < 0 or rng.random() < math.exp(-delta / temp):\n            state, cur_cost = cand, cand_cost\n            if cur_cost < best_cost:\n                best, best_cost = state, cur_cost\n        temp *= cooling\n    return best, best_cost\n\ncost = lambda x: (x - 2.5) ** 2 + 3 * math.sin(5 * x)\nbest, c = anneal(cost, lambda x, r: x + r.gauss(0, 0.4), 0.0)\nprint(round(best, 3), round(c, 5))",
+  "note": "Accepting uphill moves with probability exp(-delta/T) is what escapes local minima early on."
+ },
+ {
+  "id": "python/numerical/probability-alias-method",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 4,
+  "tags": [
+   "probability",
+   "alias-method",
+   "sampling"
+  ],
+  "code": "import random\n\ndef build_alias(weights):\n    n = len(weights)\n    total = sum(weights)\n    scaled = [w * n / total for w in weights]\n    prob, alias = [0.0] * n, [0] * n\n    small = [i for i, p in enumerate(scaled) if p < 1]\n    large = [i for i, p in enumerate(scaled) if p >= 1]\n    while small and large:\n        s, l = small.pop(), large.pop()\n        prob[s], alias[s] = scaled[s], l\n        scaled[l] -= 1 - scaled[s]\n        (small if scaled[l] < 1 else large).append(l)\n    for i in small + large:\n        prob[i] = 1.0\n    return prob, alias\n\ndef draw(prob, alias, rng):\n    i = rng.randrange(len(prob))\n    return i if rng.random() < prob[i] else alias[i]\n\nprob, alias = build_alias([1, 1, 8])\nrng = random.Random(0)\ncounts = [0] * 3\nfor _ in range(40000):\n    counts[draw(prob, alias, rng)] += 1\nprint([round(c / 40000, 2) for c in counts])",
+  "note": "Setup is O(n) and every draw after that is O(1): one uniform and one comparison."
+ },
+ {
+  "id": "python/numerical/probability-box-muller",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 3,
+  "tags": [
+   "probability",
+   "box-muller",
+   "gaussian"
+  ],
+  "code": "import math, random\n\ndef box_muller(rng):\n    u1 = 1.0 - rng.random()\n    u2 = rng.random()\n    r = math.sqrt(-2.0 * math.log(u1))\n    theta = 2.0 * math.pi * u2\n    return r * math.cos(theta), r * math.sin(theta)\n\nrng = random.Random(0)\nxs = []\nfor _ in range(20000):\n    a, b = box_muller(rng)\n    xs.extend((a, b))\nmean = sum(xs) / len(xs)\nvar = sum((x - mean) ** 2 for x in xs) / (len(xs) - 1)\nprint(round(mean, 3), round(var, 3))",
+  "note": "One pair of uniforms yields two independent standard normals, via radius and angle."
+ },
+ {
+  "id": "python/numerical/probability-inverse-transform",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 3,
+  "tags": [
+   "probability",
+   "sampling",
+   "inverse-cdf"
+  ],
+  "code": "import math, random\n\ndef exponential(rate, rng):\n    return -math.log(1.0 - rng.random()) / rate\n\ndef discrete(weights, rng):\n    total = sum(weights)\n    u = rng.random() * total\n    running = 0.0\n    for i, w in enumerate(weights):\n        running += w\n        if u < running:\n            return i\n    return len(weights) - 1\n\nrng = random.Random(0)\nxs = [exponential(2.0, rng) for _ in range(20000)]\nprint(round(sum(xs) / len(xs), 3), round(1 / 2.0, 3))\ncounts = [0] * 3\nfor _ in range(30000):\n    counts[discrete([1, 2, 7], rng)] += 1\nprint([round(c / 30000, 2) for c in counts])",
+  "note": "If U is uniform then F-inverse(U) has distribution F. That is the whole method."
+ },
+ {
+  "id": "python/numerical/probability-rejection-sampling",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 3,
+  "tags": [
+   "probability",
+   "rejection-sampling",
+   "envelope"
+  ],
+  "code": "import math, random\n\ndef rejection(pdf, lo, hi, ceiling, rng, max_tries=10_000_000):\n    for tries in range(1, max_tries):\n        x = rng.uniform(lo, hi)\n        if rng.uniform(0, ceiling) <= pdf(x):\n            return x, tries\n    raise RuntimeError(\"envelope too loose\")\n\npdf = lambda x: math.sin(x) / 2.0\nrng = random.Random(1)\nsamples = [rejection(pdf, 0, math.pi, 0.5, rng)[0] for _ in range(20000)]\nmean = sum(samples) / len(samples)\nprint(round(mean, 3), round(math.pi / 2, 3))",
+  "note": "Efficiency is the area ratio: a loose envelope wastes most of the proposals."
+ },
+ {
+  "id": "python/numerical/probability-reservoir-sampling",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 3,
+  "tags": [
+   "probability",
+   "reservoir",
+   "streaming"
+  ],
+  "code": "import random\n\ndef reservoir(stream, k, rng):\n    out = []\n    for i, item in enumerate(stream, start=1):\n        if i <= k:\n            out.append(item)\n        else:\n            j = rng.randrange(i)\n            if j < k:\n                out[j] = item\n    return out\n\nrng = random.Random(0)\ncounts = [0] * 10\nfor _ in range(30000):\n    for x in reservoir(range(10), 3, rng):\n        counts[x] += 1\nprint([round(c / 30000, 2) for c in counts])",
+  "note": "Element i survives with probability k/i, which makes every element equally likely at the end."
+ },
+ {
+  "id": "python/numerical/root-bisection",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 2,
+  "tags": [
+   "root-finding",
+   "bisection"
+  ],
+  "code": "def bisect(f, lo, hi, tol=1e-12, max_iter=200):\n    flo = f(lo)\n    if flo * f(hi) > 0:\n        raise ValueError(\"no sign change in bracket\")\n    for _ in range(max_iter):\n        mid = (lo + hi) / 2\n        fm = f(mid)\n        if abs(fm) < tol or hi - lo < tol:\n            return mid\n        if flo * fm < 0:\n            hi = mid\n        else:\n            lo, flo = mid, fm\n    return (lo + hi) / 2\n\nroot = bisect(lambda x: x ** 3 - x - 2, 1.0, 2.0)\nprint(f\"{root:.10f}\", f\"{root ** 3 - root - 2:.2e}\")",
+  "note": "Bisection needs a sign change and always converges, halving the bracket every step."
+ },
+ {
+  "id": "python/numerical/root-newton",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 2,
+  "tags": [
+   "root-finding",
+   "newton"
+  ],
+  "code": "def newton(f, df, x0, tol=1e-14, max_iter=100):\n    x = x0\n    for step in range(max_iter):\n        fx = f(x)\n        if abs(fx) < tol:\n            return x, step\n        dx = fx / df(x)\n        x -= dx\n        if abs(dx) < tol * max(1.0, abs(x)):\n            return x, step\n    return x, max_iter\n\nroot, steps = newton(lambda x: x ** 2 - 2, lambda x: 2 * x, 1.0)\nprint(f\"{root:.15f}\", steps, f\"{root ** 2 - 2:.2e}\")",
+  "note": "Newton doubles the correct digits each step near a simple root, and diverges elsewhere."
+ },
+ {
+  "id": "python/numerical/root-secant-fixed-point",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 3,
+  "tags": [
+   "root-finding",
+   "secant",
+   "fixed-point"
+  ],
+  "code": "def secant(f, x0, x1, tol=1e-13, max_iter=100):\n    f0, f1 = f(x0), f(x1)\n    for _ in range(max_iter):\n        if abs(f1 - f0) < 1e-300:\n            break\n        x2 = x1 - f1 * (x1 - x0) / (f1 - f0)\n        x0, x1, f0, f1 = x1, x2, f1, f(x2)\n        if abs(f1) < tol:\n            break\n    return x1\n\ndef fixed_point(g, x0, tol=1e-13, max_iter=1000):\n    x = x0\n    for _ in range(max_iter):\n        nxt = g(x)\n        if abs(nxt - x) < tol:\n            return nxt\n        x = nxt\n    return x\n\nprint(f\"{secant(lambda x: x ** 3 - x - 2, 1.0, 2.0):.10f}\")\nprint(f\"{fixed_point(lambda x: (x + 2) ** (1 / 3), 1.0):.10f}\")",
+  "note": "Secant replaces the derivative with a finite difference; fixed-point needs |g'| < 1 to converge."
+ },
+ {
+  "id": "python/numerical/stats-bayes-update",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 2,
+  "tags": [
+   "statistics",
+   "bayes",
+   "conjugate"
+  ],
+  "code": "def beta_update(alpha, beta, successes, failures):\n    return alpha + successes, beta + failures\n\ndef beta_mean(alpha, beta):\n    return alpha / (alpha + beta)\n\nprior = (1.0, 1.0)\nobservations = [1, 1, 0, 1, 1, 1, 0, 1]\nposterior = prior\nfor x in observations:\n    posterior = beta_update(*posterior, x, 1 - x)\nprint(posterior, round(beta_mean(*posterior), 6))\nprint(round(beta_mean(*beta_update(*prior, sum(observations), len(observations) - sum(observations))), 6))",
+  "note": "Beta is conjugate to Bernoulli, so the update is just adding successes and failures."
+ },
+ {
+  "id": "python/numerical/stats-bootstrap",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 3,
+  "tags": [
+   "statistics",
+   "bootstrap",
+   "confidence-interval"
+  ],
+  "code": "import numpy as np\n\ndef bootstrap_ci(data, stat=np.mean, reps=5000, alpha=0.05, seed=0):\n    rng = np.random.default_rng(seed)\n    data = np.asarray(data)\n    draws = rng.choice(data, size=(reps, len(data)), replace=True)\n    boots = np.apply_along_axis(stat, 1, draws)\n    lo, hi = np.quantile(boots, [alpha / 2, 1 - alpha / 2])\n    return stat(data), lo, hi\n\nrng = np.random.default_rng(1)\nsample = rng.normal(5.0, 2.0, size=80)\npoint, lo, hi = bootstrap_ci(sample)\nprint(round(point, 3), round(lo, 3), round(hi, 3), lo < 5.0 < hi)",
+  "note": "Resample with replacement at the original size; the percentile spread is the interval."
+ },
+ {
+  "id": "python/numerical/stats-chi-square",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 3,
+  "tags": [
+   "statistics",
+   "chi-square",
+   "contingency"
+  ],
+  "code": "def chi_square(table):\n    rows = [sum(r) for r in table]\n    cols = [sum(c) for c in zip(*table)]\n    total = sum(rows)\n    stat = 0.0\n    for i, row in enumerate(table):\n        for j, observed in enumerate(row):\n            expected = rows[i] * cols[j] / total\n            stat += (observed - expected) ** 2 / expected\n    df = (len(table) - 1) * (len(table[0]) - 1)\n    return stat, df\n\ntable = [[30, 20, 10], [15, 25, 20]]\nstat, df = chi_square(table)\nprint(round(stat, 4), df, stat > 5.99)",
+  "note": "Expected counts come from the row and column margins; degrees of freedom is (r-1)(c-1)."
+ },
+ {
+  "id": "python/numerical/stats-em-gmm",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 4,
+  "tags": [
+   "statistics",
+   "em",
+   "gmm"
+  ],
+  "code": "import numpy as np\n\ndef em_gmm(x, k=2, iters=200, seed=0):\n    rng = np.random.default_rng(seed)\n    mu = rng.choice(x, k, replace=False).astype(float)\n    var = np.full(k, x.var())\n    pi = np.full(k, 1.0 / k)\n    for _ in range(iters):\n        dens = pi * np.exp(-0.5 * (x[:, None] - mu) ** 2 / var) / np.sqrt(2 * np.pi * var)\n        resp = dens / dens.sum(axis=1, keepdims=True)\n        nk = resp.sum(axis=0)\n        mu = (resp * x[:, None]).sum(axis=0) / nk\n        var = (resp * (x[:, None] - mu) ** 2).sum(axis=0) / nk + 1e-9\n        pi = nk / len(x)\n    return np.sort(mu), var[np.argsort(mu)], pi[np.argsort(mu)]\n\nrng = np.random.default_rng(3)\nx = np.concatenate([rng.normal(-3, 0.7, 400), rng.normal(4, 1.2, 600)])\nmu, var, pi = em_gmm(x)\nprint(mu.round(2), pi.round(2))",
+  "note": "E-step computes soft memberships, M-step re-fits the parameters to those weights. Repeat."
+ },
+ {
+  "id": "python/numerical/stats-kalman-filter",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 4,
+  "tags": [
+   "statistics",
+   "kalman",
+   "state-estimation"
+  ],
+  "code": "import numpy as np\n\ndef kalman(zs, A, H, Q, R, x0, P0):\n    x, P = np.array(x0, dtype=float), np.array(P0, dtype=float)\n    out = []\n    for z in zs:\n        x = A @ x\n        P = A @ P @ A.T + Q\n        K = P @ H.T @ np.linalg.inv(H @ P @ H.T + R)\n        x = x + K @ (np.atleast_1d(z) - H @ x)\n        P = P - K @ H @ P\n        out.append(x.copy())\n    return np.array(out)\n\nrng = np.random.default_rng(0)\ntruth = np.cumsum(np.ones(50) * 0.5)\nzs = truth + rng.normal(0, 1.0, 50)\nA = np.array([[1.0, 1.0], [0.0, 1.0]])\nH = np.array([[1.0, 0.0]])\nest = kalman(zs, A, H, np.eye(2) * 1e-4, np.array([[1.0]]), [0.0, 0.5], np.eye(2))\nprint(np.abs(est[-10:, 0] - truth[-10:]).mean() < np.abs(zs[-10:] - truth[-10:]).mean())",
+  "note": "Predict inflates the covariance, update shrinks it. The gain decides how much you trust the sensor."
+ },
+ {
+  "id": "python/numerical/stats-markov-steady-state",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 3,
+  "tags": [
+   "statistics",
+   "markov-chain",
+   "stationary"
+  ],
+  "code": "import numpy as np\n\ndef steady_state_power(P, iters=10000):\n    v = np.full(len(P), 1.0 / len(P))\n    for _ in range(iters):\n        v = v @ P\n    return v\n\ndef steady_state_eig(P):\n    vals, vecs = np.linalg.eig(P.T)\n    v = np.real(vecs[:, np.argmin(np.abs(vals - 1))])\n    return v / v.sum()\n\nP = np.array([[0.9, 0.1, 0.0], [0.2, 0.7, 0.1], [0.1, 0.3, 0.6]])\na, b = steady_state_power(P), steady_state_eig(P)\nprint(a.round(5), np.allclose(a, b, atol=1e-6), round(a.sum(), 12))",
+  "note": "The stationary vector is the left eigenvector for eigenvalue 1, normalised to sum to one."
+ },
+ {
+  "id": "python/numerical/stats-metropolis-hastings",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 4,
+  "tags": [
+   "statistics",
+   "mcmc",
+   "metropolis"
+  ],
+  "code": "import math, random\n\ndef metropolis(log_target, x0, step=1.0, draws=50000, seed=0):\n    rng = random.Random(seed)\n    x, lp = x0, log_target(x0)\n    chain, accepted = [], 0\n    for _ in range(draws):\n        cand = x + rng.gauss(0, step)\n        lc = log_target(cand)\n        if lc - lp > math.log(rng.random() or 1e-300):\n            x, lp = cand, lc\n            accepted += 1\n        chain.append(x)\n    return chain, accepted / draws\n\nlog_target = lambda x: -0.5 * ((x - 2.0) / 1.5) ** 2\nchain, rate = metropolis(log_target, 0.0, step=2.0)\nburned = chain[5000:]\nmean = sum(burned) / len(burned)\nprint(round(mean, 2), round(rate, 2))",
+  "note": "For a symmetric proposal the acceptance ratio is just the target density ratio."
+ },
+ {
+  "id": "python/numerical/stats-mle",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 3,
+  "tags": [
+   "statistics",
+   "mle",
+   "log-likelihood"
+  ],
+  "code": "import math\n\ndef poisson_log_lik(data, lam):\n    if lam <= 0:\n        return -math.inf\n    return sum(x * math.log(lam) - lam - math.lgamma(x + 1) for x in data)\n\ndef mle_poisson(data, lo=1e-6, hi=100.0, iters=200):\n    for _ in range(iters):\n        m1, m2 = lo + (hi - lo) / 3, hi - (hi - lo) / 3\n        if poisson_log_lik(data, m1) < poisson_log_lik(data, m2):\n            lo = m1\n        else:\n            hi = m2\n    return (lo + hi) / 2\n\ndata = [2, 3, 1, 4, 2, 0, 3, 2, 5, 2]\nprint(round(mle_poisson(data), 6), round(sum(data) / len(data), 6))",
+  "note": "Maximise the log-likelihood, not the likelihood: sums do not underflow, products do."
+ },
+ {
+  "id": "python/numerical/stats-permutation-test",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 3,
+  "tags": [
+   "statistics",
+   "permutation-test",
+   "exact"
+  ],
+  "code": "import numpy as np\n\ndef permutation_test(a, b, reps=20000, seed=0):\n    rng = np.random.default_rng(seed)\n    pooled = np.concatenate([a, b])\n    observed = a.mean() - b.mean()\n    n = len(a)\n    count = 0\n    for _ in range(reps):\n        rng.shuffle(pooled)\n        if abs(pooled[:n].mean() - pooled[n:].mean()) >= abs(observed):\n            count += 1\n    return observed, (count + 1) / (reps + 1)\n\nrng = np.random.default_rng(2)\na = rng.normal(0.6, 1.0, 40)\nb = rng.normal(0.0, 1.0, 45)\ndiff, p = permutation_test(a, b)\nprint(round(diff, 4), round(p, 4), p < 0.05)",
+  "note": "Shuffle the group labels, not the values; the null says the labels carry no information."
+ },
+ {
+  "id": "python/numerical/stats-t-test",
+  "lang": "python",
+  "topic": "numerical",
+  "tier": 3,
+  "tags": [
+   "statistics",
+   "t-test",
+   "welch"
+  ],
+  "code": "import math\n\ndef welch_t(a, b):\n    na, nb = len(a), len(b)\n    ma, mb = sum(a) / na, sum(b) / nb\n    va = sum((x - ma) ** 2 for x in a) / (na - 1)\n    vb = sum((x - mb) ** 2 for x in b) / (nb - 1)\n    se = math.sqrt(va / na + vb / nb)\n    t = (ma - mb) / se\n    df = se ** 4 / ((va / na) ** 2 / (na - 1) + (vb / nb) ** 2 / (nb - 1))\n    return t, df\n\na = [5.1, 4.9, 5.6, 5.2, 4.8, 5.4]\nb = [4.4, 4.1, 4.7, 4.3, 4.0]\nt, df = welch_t(a, b)\nprint(round(t, 4), round(df, 3), abs(t) > 2)",
+  "note": "Welch's test drops the equal-variance assumption, which is almost always the safer default."
+ }
+]

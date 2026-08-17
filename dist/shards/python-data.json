@@ -1,0 +1,434 @@
+[
+ {
+  "id": "python/data/clean-datetime-parse",
+  "lang": "python",
+  "topic": "data",
+  "tier": 2,
+  "tags": [
+   "cleaning",
+   "datetime",
+   "parsing"
+  ],
+  "code": "import pandas as pd\n\nraw = pd.Series([\"2024-03-05\", \"March 5, 2024\", \"not a date\", \"2024-03-05 14:30\"])\nparsed = pd.to_datetime(raw, errors=\"coerce\", format=\"mixed\")\nprint(parsed.tolist())\nprint(parsed.isna().sum(), parsed.dt.year.tolist())\nprint(parsed.dt.strftime(\"%Y-W%V\").tolist())\nprint(parsed.dt.dayofweek.tolist(), parsed.dt.is_month_end.tolist())",
+  "note": "errors=\"coerce\" turns unparseable values into NaT instead of aborting the whole column."
+ },
+ {
+  "id": "python/data/clean-dedup",
+  "lang": "python",
+  "topic": "data",
+  "tier": 2,
+  "tags": [
+   "cleaning",
+   "duplicates"
+  ],
+  "code": "import pandas as pd\n\ndf = pd.DataFrame({\n    \"id\": [1, 2, 2, 3, 3],\n    \"email\": [\"a@x\", \"b@x\", \"b@x\", \"c@x\", \"c@y\"],\n    \"updated\": [1, 1, 2, 1, 2],\n})\nprint(df.duplicated().sum(), df.duplicated(subset=[\"id\"]).sum())\nprint(df.drop_duplicates(subset=[\"id\"], keep=\"last\"))\nprint(df.sort_values(\"updated\").drop_duplicates(\"id\", keep=\"last\").sort_index())\nprint(df[\"email\"].value_counts().loc[lambda s: s > 1].to_dict())",
+  "note": "keep=\"last\" wins when later rows are corrections; subset decides what \"same row\" means."
+ },
+ {
+  "id": "python/data/clean-imputation",
+  "lang": "python",
+  "topic": "data",
+  "tier": 2,
+  "tags": [
+   "cleaning",
+   "imputation",
+   "missing"
+  ],
+  "code": "import numpy as np\nimport pandas as pd\n\ndf = pd.DataFrame({\n    \"x\": [1.0, np.nan, 3.0, np.nan, 5.0],\n    \"grp\": [\"a\", \"a\", \"b\", \"b\", \"b\"],\n})\nprint(df.assign(was_null=lambda d: d[\"x\"].isna()))\nprint(df[\"x\"].fillna(df[\"x\"].median()).tolist())\nprint(df[\"x\"].ffill().tolist(), df[\"x\"].bfill().tolist())\nprint(df.groupby(\"grp\")[\"x\"].transform(lambda s: s.fillna(s.mean())).tolist())\nprint(df[\"x\"].interpolate().round(2).tolist())",
+  "note": "Add an indicator column when you impute: \"was missing\" is often the strongest feature."
+ },
+ {
+  "id": "python/data/clean-iqr-outliers",
+  "lang": "python",
+  "topic": "data",
+  "tier": 2,
+  "tags": [
+   "cleaning",
+   "outliers",
+   "iqr"
+  ],
+  "code": "import numpy as np\nimport pandas as pd\n\ns = pd.Series([10, 11, 12, 11, 13, 12, 200, 9, 11, -80])\nq1, q3 = s.quantile([0.25, 0.75])\niqr = q3 - q1\nlo, hi = q1 - 1.5 * iqr, q3 + 1.5 * iqr\nmask = (s < lo) | (s > hi)\nprint(round(q1, 2), round(q3, 2), round(iqr, 2))\nprint(s[mask].tolist(), mask.sum())\nprint(s.clip(lo, hi).tolist())",
+  "note": "The IQR rule is distribution-free, which is why it survives the skew that z-scores do not."
+ },
+ {
+  "id": "python/data/clean-missing-audit",
+  "lang": "python",
+  "topic": "data",
+  "tier": 2,
+  "tags": [
+   "cleaning",
+   "missing",
+   "audit"
+  ],
+  "code": "import numpy as np\nimport pandas as pd\n\nrng = np.random.default_rng(0)\ndf = pd.DataFrame(rng.normal(size=(50, 4)), columns=list(\"abcd\"))\ndf = df.mask(rng.random(df.shape) < 0.15)\n\nreport = pd.DataFrame({\n    \"nulls\": df.isna().sum(),\n    \"pct\": (df.isna().mean() * 100).round(1),\n    \"dtype\": df.dtypes.astype(str),\n})\nprint(report)\nprint(df.isna().sum(axis=1).value_counts().sort_index().to_dict())\nprint(df.dropna().shape, df.dropna(thresh=3).shape)",
+  "note": "Audit missingness by column and by row before deciding anything; the pattern is the signal."
+ },
+ {
+  "id": "python/data/clean-regex-extract",
+  "lang": "python",
+  "topic": "data",
+  "tier": 3,
+  "tags": [
+   "cleaning",
+   "regex",
+   "extract"
+  ],
+  "code": "import pandas as pd\n\ns = pd.Series([\"order-1023 @ 2024-03-05\", \"order-77 @ 2023-12-31\", \"malformed\"])\nparts = s.str.extract(r\"order-(?P<num>\\d+) @ (?P<date>\\d{4}-\\d{2}-\\d{2})\")\nprint(parts)\nprint(parts[\"num\"].astype(\"Int64\").tolist())\nprint(s.str.contains(r\"^order-\\d+\", regex=True).tolist())\nprint(s.str.findall(r\"\\d+\").tolist())\nprint(s.str.replace(r\"\\d+\", \"#\", regex=True).tolist())",
+  "note": "Named groups become column names, and expand=True gives a DataFrame instead of tuples."
+ },
+ {
+  "id": "python/data/clean-schema-validate",
+  "lang": "python",
+  "topic": "data",
+  "tier": 3,
+  "tags": [
+   "cleaning",
+   "validation",
+   "schema"
+  ],
+  "code": "import pandas as pd\n\nSCHEMA = {\"id\": \"int64\", \"name\": \"object\", \"score\": \"float64\"}\n\ndef validate(df, schema=SCHEMA):\n    problems = []\n    missing = set(schema) - set(df.columns)\n    if missing:\n        problems.append(f\"missing columns: {sorted(missing)}\")\n    for col, want in schema.items():\n        if col in df.columns and str(df[col].dtype) != want:\n            problems.append(f\"{col}: expected {want}, got {df[col].dtype}\")\n    if df.index.duplicated().any():\n        problems.append(\"duplicate index values\")\n    return problems\n\ngood = pd.DataFrame({\"id\": [1, 2], \"name\": [\"a\", \"b\"], \"score\": [1.0, 2.0]})\nbad = pd.DataFrame({\"id\": [\"1\"], \"score\": [1.0]})\nprint(validate(good), validate(bad))",
+  "note": "Validate at the boundary and fail loudly; a silently wrong dtype propagates for hours."
+ },
+ {
+  "id": "python/data/clean-string-normalize",
+  "lang": "python",
+  "topic": "data",
+  "tier": 2,
+  "tags": [
+   "cleaning",
+   "strings",
+   "unicode"
+  ],
+  "code": "import unicodedata\nimport pandas as pd\n\ns = pd.Series([\" Ann-Marie \", \"BOB  smith\", \"café\", \"  \", None])\ncleaned = (\n    s.str.normalize(\"NFC\")\n     .str.strip()\n     .str.replace(r\"\\s+\", \" \", regex=True)\n     .str.casefold()\n     .replace(\"\", None)\n)\nprint(cleaned.tolist())\nprint(cleaned.str.len().tolist(), cleaned.isna().sum())\nprint(unicodedata.normalize(\"NFC\", \"café\") == \"café\")",
+  "note": "Normalise unicode before comparing: two visually identical strings can differ byte for byte."
+ },
+ {
+  "id": "python/data/clean-timezone",
+  "lang": "python",
+  "topic": "data",
+  "tier": 3,
+  "tags": [
+   "cleaning",
+   "timezone",
+   "utc"
+  ],
+  "code": "import pandas as pd\n\nnaive = pd.to_datetime([\"2024-03-10 01:30\", \"2024-11-03 01:30\"])\nlocalised = naive.tz_localize(\"UTC\").tz_convert(\"America/New_York\")\nprint(localised.tolist())\nprint(localised.tz_convert(\"UTC\").tolist())\ns = pd.Series(pd.to_datetime([\"2024-06-01 12:00\"]).tz_localize(\"Europe/London\"))\nprint(s.dt.tz, s.dt.tz_convert(\"UTC\").dt.hour.tolist())",
+  "note": "Store UTC, convert only at the edges; a naive timestamp is a bug waiting for a DST boundary."
+ },
+ {
+  "id": "python/data/clean-zscore-outliers",
+  "lang": "python",
+  "topic": "data",
+  "tier": 2,
+  "tags": [
+   "cleaning",
+   "outliers",
+   "zscore",
+   "mad"
+  ],
+  "code": "import numpy as np\nimport pandas as pd\n\ns = pd.Series([10.0, 11, 12, 11, 13, 12, 200, 9, 11])\nz = (s - s.mean()) / s.std(ddof=0)\nmad = (s - s.median()).abs().median()\nrobust = 0.6745 * (s - s.median()) / mad\nprint(z.round(2).tolist())\nprint(robust.round(2).tolist())\nprint((z.abs() > 3).sum(), (robust.abs() > 3.5).sum())",
+  "note": "The modified z-score uses the median and MAD, so a single huge value cannot hide itself."
+ },
+ {
+  "id": "python/data/pandas-apply-vs-vectorized",
+  "lang": "python",
+  "topic": "data",
+  "tier": 3,
+  "tags": [
+   "pandas",
+   "vectorization",
+   "apply"
+  ],
+  "code": "import numpy as np\nimport pandas as pd\n\ndf = pd.DataFrame({\"a\": np.arange(1, 6), \"b\": np.arange(10, 15)})\n\nslow = df.apply(lambda r: r[\"a\"] * 2 + r[\"b\"] if r[\"a\"] % 2 else r[\"b\"], axis=1)\nfast = np.where(df[\"a\"] % 2 == 1, df[\"a\"] * 2 + df[\"b\"], df[\"b\"])\nprint(slow.tolist(), list(fast), (slow.to_numpy() == fast).all())\n\nprint(df[\"a\"].map(lambda v: v ** 2).tolist())\nprint(df.map(lambda v: v + 1).to_numpy().sum())",
+  "note": "apply loops in Python per row; the vectorized form does the same work in one C pass."
+ },
+ {
+  "id": "python/data/pandas-assign-query",
+  "lang": "python",
+  "topic": "data",
+  "tier": 2,
+  "tags": [
+   "pandas",
+   "query",
+   "assign"
+  ],
+  "code": "import pandas as pd\n\ndf = pd.DataFrame({\n    \"price\": [10.0, 25.0, 5.0, 40.0],\n    \"qty\": [3, 1, 10, 2],\n    \"tag\": [\"x\", \"y\", \"x\", \"y\"],\n})\nlimit = 20.0\nprint(df.query(\"price > @limit and qty < 3\"))\nprint(df.query(\"tag in ['x'] or qty >= 10\").shape)\nprint(df.assign(total=lambda d: d[\"price\"] * d[\"qty\"],\n                pricey=lambda d: d[\"total\"] > 50).sort_values(\"total\"))",
+  "note": "query reads column names bare and @ escapes into local variables."
+ },
+ {
+  "id": "python/data/pandas-categoricals",
+  "lang": "python",
+  "topic": "data",
+  "tier": 3,
+  "tags": [
+   "pandas",
+   "categorical",
+   "memory"
+  ],
+  "code": "import pandas as pd\n\nsizes = pd.Series([\"m\", \"s\", \"l\", \"m\", \"xl\"], dtype=\"category\")\nordered = sizes.cat.set_categories([\"s\", \"m\", \"l\", \"xl\"], ordered=True)\nprint(sizes.dtype, ordered.sort_values().tolist())\nprint((ordered > \"m\").tolist(), ordered.cat.codes.tolist())\nraw = pd.Series([\"a\"] * 1000 + [\"b\"] * 1000)\nprint(raw.memory_usage(deep=True) > raw.astype(\"category\").memory_usage(deep=True))",
+  "note": "An ordered categorical sorts by its declared order, not alphabetically, and stores as small ints."
+ },
+ {
+  "id": "python/data/pandas-dtype-downcast",
+  "lang": "python",
+  "topic": "data",
+  "tier": 3,
+  "tags": [
+   "pandas",
+   "dtypes",
+   "memory"
+  ],
+  "code": "import numpy as np\nimport pandas as pd\n\ndf = pd.DataFrame({\n    \"small\": np.arange(100, dtype=\"int64\"),\n    \"ratio\": np.linspace(0, 1, 100).astype(\"float64\"),\n    \"flag\": np.random.default_rng(0).integers(0, 2, 100).astype(\"int64\"),\n})\nbefore = df.memory_usage(deep=True).sum()\ntight = df.assign(\n    small=lambda d: pd.to_numeric(d[\"small\"], downcast=\"unsigned\"),\n    ratio=lambda d: pd.to_numeric(d[\"ratio\"], downcast=\"float\"),\n    flag=lambda d: d[\"flag\"].astype(\"bool\"),\n)\nprint(dict(tight.dtypes.astype(str)), tight.memory_usage(deep=True).sum() < before)",
+  "note": "Downcast only after you know the value range; int8 silently cannot hold 200."
+ },
+ {
+  "id": "python/data/pandas-explode",
+  "lang": "python",
+  "topic": "data",
+  "tier": 3,
+  "tags": [
+   "pandas",
+   "explode",
+   "nested"
+  ],
+  "code": "import pandas as pd\n\ndf = pd.DataFrame({\n    \"order\": [1, 2, 3],\n    \"items\": [[\"pen\", \"ink\"], [\"pad\"], []],\n})\nflat = df.explode(\"items\")\nprint(flat)\nprint(flat.dropna(subset=[\"items\"]).groupby(\"items\").size().to_dict())\nprint(df.assign(n=lambda d: d[\"items\"].str.len())[\"n\"].tolist())\nregrouped = flat.dropna(subset=[\"items\"]).groupby(\"order\")[\"items\"].agg(list)\nprint(regrouped.to_dict())",
+  "note": "explode repeats the other columns once per list element and keeps the original index."
+ },
+ {
+  "id": "python/data/pandas-groupby-agg",
+  "lang": "python",
+  "topic": "data",
+  "tier": 2,
+  "tags": [
+   "pandas",
+   "groupby",
+   "agg"
+  ],
+  "code": "import pandas as pd\n\ndf = pd.DataFrame({\n    \"team\": [\"a\", \"b\", \"a\", \"b\", \"c\"],\n    \"score\": [10, 20, 30, 40, 50],\n    \"cost\": [1.5, 2.5, 3.5, 4.5, 5.5],\n})\nprint(df.groupby(\"team\")[\"score\"].agg([\"sum\", \"mean\", \"count\"]))\nprint(df.groupby(\"team\").agg(total=(\"score\", \"sum\"), worst=(\"cost\", \"max\")))\nprint(df.groupby(\"team\")[\"score\"].transform(\"mean\").tolist())\nprint(df.groupby(\"team\", as_index=False)[\"cost\"].sum())",
+  "note": "Named aggregation gives flat column names, which saves you from a MultiIndex you did not want."
+ },
+ {
+  "id": "python/data/pandas-groupby-multi",
+  "lang": "python",
+  "topic": "data",
+  "tier": 3,
+  "tags": [
+   "pandas",
+   "groupby",
+   "multiindex"
+  ],
+  "code": "import pandas as pd\n\ndf = pd.DataFrame({\n    \"region\": [\"n\", \"n\", \"s\", \"s\", \"n\", \"s\"],\n    \"quarter\": [\"q1\", \"q2\", \"q1\", \"q2\", \"q1\", \"q1\"],\n    \"revenue\": [100, 120, 90, 95, 40, 60],\n})\ngrouped = df.groupby([\"region\", \"quarter\"])[\"revenue\"].sum()\nprint(grouped)\nprint(grouped.unstack(fill_value=0))\nprint(grouped.groupby(level=\"region\").rank(ascending=False).tolist())\nprint(df.groupby([\"region\", \"quarter\"]).size().reset_index(name=\"n\"))",
+  "note": "Grouping on two keys gives a MultiIndex; unstack turns the inner level into columns."
+ },
+ {
+  "id": "python/data/pandas-loc-iloc-at",
+  "lang": "python",
+  "topic": "data",
+  "tier": 2,
+  "tags": [
+   "pandas",
+   "indexing",
+   "loc",
+   "iloc"
+  ],
+  "code": "import pandas as pd\n\ndf = pd.DataFrame({\"x\": [1, 2, 3, 4], \"y\": [10, 20, 30, 40]}, index=[\"a\", \"b\", \"c\", \"d\"])\nprint(df.loc[\"b\":\"c\"])\nprint(df.iloc[1:3])\nprint(df.loc[df[\"x\"] > 2, \"y\"].tolist(), df.at[\"a\", \"y\"], df.iat[0, 1])\ndf.loc[\"b\", \"y\"] = 99\nprint(df[\"y\"].tolist(), df.loc[[\"a\", \"d\"], [\"y\", \"x\"]].to_numpy().tolist())",
+  "note": "loc is label-based and end-inclusive; iloc is positional and end-exclusive. That asymmetry bites."
+ },
+ {
+  "id": "python/data/pandas-merge-join",
+  "lang": "python",
+  "topic": "data",
+  "tier": 2,
+  "tags": [
+   "pandas",
+   "merge",
+   "join"
+  ],
+  "code": "import pandas as pd\n\nleft = pd.DataFrame({\"id\": [1, 2, 3], \"name\": [\"a\", \"b\", \"c\"]})\nright = pd.DataFrame({\"id\": [2, 3, 4], \"score\": [20, 30, 40]})\nprint(pd.merge(left, right, on=\"id\", how=\"inner\"))\nprint(pd.merge(left, right, on=\"id\", how=\"left\"))\nprint(pd.merge(left, right, on=\"id\", how=\"outer\", indicator=True))\nprint(left.merge(right, on=\"id\", how=\"right\", suffixes=(\"_l\", \"_r\")).shape)\nprint(left.set_index(\"id\").join(right.set_index(\"id\"), how=\"cross\" if False else \"left\"))",
+  "note": "Pass indicator=True whenever a merge surprises you; it names which side each row came from."
+ },
+ {
+  "id": "python/data/pandas-method-chaining",
+  "lang": "python",
+  "topic": "data",
+  "tier": 3,
+  "tags": [
+   "pandas",
+   "chaining",
+   "pipe"
+  ],
+  "code": "import pandas as pd\n\nraw = pd.DataFrame({\n    \"name\": [\" Ann \", \"bob\", \"CARL\", \"dee\"],\n    \"sales\": [100, 0, 250, 90],\n    \"region\": [\"n\", \"n\", \"s\", \"s\"],\n})\nout = (\n    raw\n    .assign(name=lambda d: d[\"name\"].str.strip().str.title())\n    .query(\"sales > 0\")\n    .assign(share=lambda d: d[\"sales\"] / d.groupby(\"region\")[\"sales\"].transform(\"sum\"))\n    .sort_values(\"share\", ascending=False)\n    .reset_index(drop=True)\n)\nprint(out)\nprint(raw.pipe(lambda d: d.shape))",
+  "note": "One expression, no intermediate names, and every step is easy to comment out while debugging."
+ },
+ {
+  "id": "python/data/pandas-multiindex",
+  "lang": "python",
+  "topic": "data",
+  "tier": 3,
+  "tags": [
+   "pandas",
+   "multiindex",
+   "xs"
+  ],
+  "code": "import pandas as pd\n\nidx = pd.MultiIndex.from_product([[\"a\", \"b\"], [1, 2]], names=[\"grp\", \"sub\"])\ndf = pd.DataFrame({\"v\": [10, 20, 30, 40], \"w\": [1, 2, 3, 4]}, index=idx)\nprint(df)\nprint(df.xs(\"a\", level=\"grp\"))\nprint(df.xs(2, level=\"sub\")[\"v\"].tolist())\nprint(df.swaplevel().sort_index().index.tolist())\nprint(df.groupby(level=\"grp\").sum().to_dict())",
+  "note": "Use xs to slice one level without collapsing the rest, and swaplevel to reorder before sorting."
+ },
+ {
+  "id": "python/data/pandas-pivot-melt",
+  "lang": "python",
+  "topic": "data",
+  "tier": 2,
+  "tags": [
+   "pandas",
+   "pivot",
+   "melt",
+   "reshape"
+  ],
+  "code": "import pandas as pd\n\nlong = pd.DataFrame({\n    \"day\": [\"mon\", \"mon\", \"tue\", \"tue\"],\n    \"metric\": [\"hits\", \"errs\", \"hits\", \"errs\"],\n    \"value\": [100, 2, 130, 5],\n})\nwide = long.pivot(index=\"day\", columns=\"metric\", values=\"value\")\nprint(wide)\nprint(wide.reset_index().melt(id_vars=\"day\", var_name=\"metric\", value_name=\"value\"))\nprint(long.pivot_table(index=\"day\", columns=\"metric\", values=\"value\", aggfunc=\"sum\"))",
+  "note": "pivot needs unique index/column pairs; pivot_table aggregates duplicates instead of raising."
+ },
+ {
+  "id": "python/data/ts-acf-pacf",
+  "lang": "python",
+  "topic": "data",
+  "tier": 4,
+  "tags": [
+   "time-series",
+   "acf",
+   "pacf",
+   "durbin-levinson"
+  ],
+  "code": "import numpy as np\n\ndef acf(x, nlags=10):\n    x = np.asarray(x, dtype=float)\n    x = x - x.mean()\n    denom = (x ** 2).sum()\n    return np.array([1.0] + [(x[k:] * x[:-k]).sum() / denom for k in range(1, nlags + 1)])\n\ndef pacf(x, nlags=10):\n    r = acf(x, nlags)\n    phi = np.zeros((nlags + 1, nlags + 1))\n    out = [1.0]\n    phi[1, 1] = r[1]\n    out.append(r[1])\n    for k in range(2, nlags + 1):\n        num = r[k] - sum(phi[k - 1, j] * r[k - j] for j in range(1, k))\n        den = 1 - sum(phi[k - 1, j] * r[j] for j in range(1, k))\n        phi[k, k] = num / den\n        for j in range(1, k):\n            phi[k, j] = phi[k - 1, j] - phi[k, k] * phi[k - 1, k - j]\n        out.append(phi[k, k])\n    return np.array(out)\n\nrng = np.random.default_rng(0)\ne = rng.normal(size=500)\nx = np.zeros(500)\nfor i in range(1, 500):\n    x[i] = 0.7 * x[i - 1] + e[i]\nprint(acf(x, 4).round(3), pacf(x, 4).round(3))",
+  "note": "PACF strips the shorter lags out, which is why an AR(p) process cuts off at exactly lag p."
+ },
+ {
+  "id": "python/data/ts-ar-fit",
+  "lang": "python",
+  "topic": "data",
+  "tier": 3,
+  "tags": [
+   "time-series",
+   "autoregression",
+   "least-squares"
+  ],
+  "code": "import numpy as np\n\ndef fit_ar(x, p):\n    x = np.asarray(x, dtype=float)\n    X = np.column_stack([x[p - k - 1:-k - 1] for k in range(p)])\n    X = np.hstack([np.ones((len(X), 1)), X])\n    coef, *_ = np.linalg.lstsq(X, x[p:], rcond=None)\n    return coef\n\ndef forecast(x, coef, steps):\n    p = len(coef) - 1\n    hist = list(np.asarray(x, dtype=float)[-p:])\n    out = []\n    for _ in range(steps):\n        nxt = coef[0] + sum(coef[k + 1] * hist[-k - 1] for k in range(p))\n        hist.append(nxt)\n        out.append(nxt)\n    return np.array(out)\n\nrng = np.random.default_rng(0)\nx = np.zeros(400)\nfor i in range(1, 400):\n    x[i] = 0.6 * x[i - 1] + rng.normal()\ncoef = fit_ar(x, 2)\nprint(coef.round(3), forecast(x, coef, 3).round(3))",
+  "note": "An AR(p) fit is just least squares on lagged columns; the I in ARIMA is the differencing you did first."
+ },
+ {
+  "id": "python/data/ts-differencing",
+  "lang": "python",
+  "topic": "data",
+  "tier": 3,
+  "tags": [
+   "time-series",
+   "differencing",
+   "stationarity"
+  ],
+  "code": "import numpy as np\nimport pandas as pd\n\nt = np.arange(24)\nseries = pd.Series(0.5 * t + 3 * np.sin(2 * np.pi * t / 12) + 10.0)\nd1 = series.diff().dropna()\nseasonal = series.diff(12).dropna()\nprint(round(series.std(), 3), round(d1.std(), 3), round(seasonal.std(), 3))\nprint(round(d1.mean(), 3), np.allclose(series.diff().cumsum().dropna() + series.iloc[0], series[1:]))",
+  "note": "First differencing removes a linear trend; seasonal differencing at the period removes the cycle."
+ },
+ {
+  "id": "python/data/ts-exponential-smoothing",
+  "lang": "python",
+  "topic": "data",
+  "tier": 3,
+  "tags": [
+   "time-series",
+   "exponential-smoothing",
+   "holt"
+  ],
+  "code": "import numpy as np\n\ndef simple_exp(x, alpha):\n    out = [float(x[0])]\n    for v in x[1:]:\n        out.append(alpha * v + (1 - alpha) * out[-1])\n    return np.array(out)\n\ndef holt(x, alpha=0.5, beta=0.3):\n    level, trend = float(x[0]), float(x[1] - x[0])\n    out = [level]\n    for v in x[1:]:\n        prev = level\n        level = alpha * v + (1 - alpha) * (level + trend)\n        trend = beta * (level - prev) + (1 - beta) * trend\n        out.append(level)\n    return np.array(out), level, trend\n\nx = np.array([10.0, 12, 13, 16, 18, 21, 23])\nprint(simple_exp(x, 0.4).round(2))\nfit, level, trend = holt(x)\nprint(fit.round(2), round(level + 2 * trend, 2))",
+  "note": "Holt adds a trend term, so the forecast keeps climbing instead of flattening immediately."
+ },
+ {
+  "id": "python/data/ts-lag-features",
+  "lang": "python",
+  "topic": "data",
+  "tier": 3,
+  "tags": [
+   "time-series",
+   "feature-engineering",
+   "lags"
+  ],
+  "code": "import numpy as np\nimport pandas as pd\n\ns = pd.Series(np.arange(1, 13, dtype=float),\n              index=pd.date_range(\"2024-01-01\", periods=12, freq=\"D\"))\nfeat = pd.DataFrame({\"y\": s})\nfor lag in (1, 2, 7):\n    feat[f\"lag{lag}\"] = s.shift(lag)\nfeat[\"roll3_mean\"] = s.shift(1).rolling(3).mean()\nfeat[\"roll3_std\"] = s.shift(1).rolling(3).std()\nfeat[\"dow\"] = s.index.dayofweek\nfeat[\"ewm\"] = s.shift(1).ewm(alpha=0.5).mean()\nprint(feat.tail(3).round(2))\nprint(feat.dropna().shape, feat.columns.tolist())",
+  "note": "Every rolling feature must be shifted by one, or the row's own target is inside its own window."
+ },
+ {
+  "id": "python/data/ts-resample",
+  "lang": "python",
+  "topic": "data",
+  "tier": 2,
+  "tags": [
+   "time-series",
+   "resample",
+   "frequency"
+  ],
+  "code": "import numpy as np\nimport pandas as pd\n\nidx = pd.date_range(\"2024-01-01\", periods=48, freq=\"h\")\ns = pd.Series(np.arange(48, dtype=float), index=idx)\nprint(s.resample(\"D\").agg([\"sum\", \"mean\", \"max\"]))\nprint(s.resample(\"6h\").mean().head(4).round(1).tolist())\nprint(s.resample(\"30min\").asfreq().isna().sum())\nprint(s.resample(\"30min\").ffill().head(4).tolist())",
+  "note": "Downsampling aggregates, upsampling leaves holes you must explicitly fill."
+ },
+ {
+  "id": "python/data/ts-rolling",
+  "lang": "python",
+  "topic": "data",
+  "tier": 2,
+  "tags": [
+   "time-series",
+   "rolling",
+   "window"
+  ],
+  "code": "import numpy as np\nimport pandas as pd\n\nidx = pd.date_range(\"2024-01-01\", periods=10, freq=\"D\")\ns = pd.Series([1, 3, 2, 8, 5, 4, 9, 7, 6, 10], index=idx, dtype=float)\nprint(s.rolling(3).mean().round(2).tolist())\nprint(s.rolling(3, min_periods=1).mean().round(2).tolist())\nprint(s.rolling(3, center=True).max().tolist())\nprint(s.rolling(\"3D\").sum().tolist())\nprint(s.expanding().mean().round(2).tolist())",
+  "note": "min_periods decides how much of the leading NaN ramp you keep; center shifts the label."
+ },
+ {
+  "id": "python/data/ts-rolling-origin-cv",
+  "lang": "python",
+  "topic": "data",
+  "tier": 4,
+  "tags": [
+   "time-series",
+   "cross-validation",
+   "rolling-origin"
+  ],
+  "code": "import numpy as np\n\ndef rolling_origin(n, window, horizon, expanding=False):\n    folds, origin = [], window\n    while origin + horizon <= n:\n        lo = 0 if expanding else origin - window\n        folds.append((np.arange(lo, origin), np.arange(origin, origin + horizon)))\n        origin += horizon\n    return folds\n\ndef score(series, folds, predict):\n    errs = []\n    for train, test in folds:\n        pred = predict(series[train], len(test))\n        errs.append(np.mean(np.abs(pred - series[test])))\n    return float(np.mean(errs))\n\nseries = np.cumsum(np.random.default_rng(0).normal(0.2, 1.0, 60))\nsliding = rolling_origin(60, 20, 5)\nexpanding = rolling_origin(60, 20, 5, expanding=True)\nnaive = lambda hist, k: np.repeat(hist[-1], k)\nprint(len(sliding), [len(t) for t, _ in expanding][:3])\nprint(round(score(series, sliding, naive), 3))",
+  "note": "A sliding window forgets old regimes; an expanding one assumes they still apply. Pick deliberately."
+ },
+ {
+  "id": "python/data/ts-seasonal-decompose",
+  "lang": "python",
+  "topic": "data",
+  "tier": 3,
+  "tags": [
+   "time-series",
+   "decomposition",
+   "seasonality"
+  ],
+  "code": "import numpy as np\nimport pandas as pd\n\ndef decompose(s, period):\n    trend = s.rolling(period, center=True, min_periods=period).mean()\n    detrended = s - trend\n    phase = np.arange(len(s)) % period\n    seasonal_map = detrended.groupby(phase).mean()\n    seasonal = pd.Series(seasonal_map.reindex(phase).to_numpy(), index=s.index)\n    return trend, seasonal - seasonal.mean(), s - trend - seasonal\n\nt = np.arange(48)\ns = pd.Series(0.3 * t + 5 * np.sin(2 * np.pi * t / 12) + np.random.default_rng(0).normal(0, 0.3, 48))\ntrend, seasonal, resid = decompose(s, 12)\nprint(round(float(seasonal.abs().max()), 2), round(float(resid.std(skipna=True)), 2))",
+  "note": "Trend by centred moving average, seasonality by the mean of the detrended residual per phase."
+ },
+ {
+  "id": "python/data/ts-shift-lag",
+  "lang": "python",
+  "topic": "data",
+  "tier": 2,
+  "tags": [
+   "time-series",
+   "shift",
+   "lag"
+  ],
+  "code": "import pandas as pd\n\ns = pd.Series([10, 12, 11, 15, 14], index=pd.date_range(\"2024-01-01\", periods=5))\nframe = pd.DataFrame({\"y\": s})\nfor lag in (1, 2):\n    frame[f\"lag{lag}\"] = s.shift(lag)\nframe[\"pct\"] = s.pct_change().round(4)\nframe[\"future\"] = s.shift(-1)\nprint(frame)\nprint(frame[[\"y\", \"lag1\"]].dropna().shape)",
+  "note": "A lag feature must only look backwards; a negative shift leaks the future into training."
+ },
+ {
+  "id": "python/data/ts-walk-forward",
+  "lang": "python",
+  "topic": "data",
+  "tier": 3,
+  "tags": [
+   "time-series",
+   "validation",
+   "walk-forward"
+  ],
+  "code": "import numpy as np\n\ndef walk_forward(n, initial, horizon, step=None):\n    step = step or horizon\n    folds, start = [], initial\n    while start + horizon <= n:\n        folds.append((np.arange(0, start), np.arange(start, start + horizon)))\n        start += step\n    return folds\n\nfolds = walk_forward(20, initial=10, horizon=3)\nfor train, test in folds:\n    print(len(train), test[0], test[-1])\nprint(all(train[-1] < test[0] for train, test in folds))",
+  "note": "Never shuffle a time series: every fold's training window must end before its test window starts."
+ }
+]

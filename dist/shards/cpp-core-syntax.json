@@ -1,0 +1,366 @@
+[
+ {
+  "id": "cpp/core-syntax/aggregate-init",
+  "lang": "cpp",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "aggregate",
+   "designated-initializer",
+   "brace-init"
+  ],
+  "code": "#include <array>\n#include <vector>\n\nstruct Point {\n    int x{};\n    int y{};\n    const char* label{\"origin\"};\n};\n\nint demo() {\n    Point a{1, 2};\n    Point b{.x = 3, .y = 4};\n    Point c{};\n    std::array<int, 4> arr{1, 2, 3};\n    std::vector<Point> pts{{1, 1}, {2, 2}};\n\n    return a.x + b.y + c.x + arr[2] + static_cast<int>(pts.size());\n}",
+  "note": "Braces forbid narrowing conversions, which is why {} is the safer initialiser."
+ },
+ {
+  "id": "cpp/core-syntax/auto-decltype",
+  "lang": "cpp",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "auto",
+   "decltype",
+   "type-deduction"
+  ],
+  "code": "#include <vector>\n\nstd::vector<int> data{1, 2, 3};\n\nint& first_ref() { return data[0]; }\n\nvoid demo() {\n    auto plain = first_ref();\n    auto& kept = first_ref();\n    decltype(auto) exact = first_ref();\n    decltype(data)::size_type n = data.size();\n\n    static_assert(std::is_same_v<decltype(plain), int>);\n    static_assert(std::is_same_v<decltype(kept), int&>);\n    static_assert(std::is_same_v<decltype(exact), int&>);\n    (void)n;\n}",
+  "note": "auto strips references and const; decltype(auto) preserves exactly what the expression is."
+ },
+ {
+  "id": "cpp/core-syntax/class-ctor-init-list",
+  "lang": "cpp",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "constructor",
+   "init-list",
+   "delegating"
+  ],
+  "code": "#include <string>\n#include <vector>\n\nclass Buffer {\npublic:\n    explicit Buffer(std::size_t n) : size_(n), data_(n, 0) {}\n    Buffer() : Buffer(16) {}\n    Buffer(std::size_t n, std::string tag) : size_(n), data_(n, 1), tag_(std::move(tag)) {}\n\n    std::size_t size() const noexcept { return size_; }\n    const std::string& tag() const noexcept { return tag_; }\n\nprivate:\n    std::size_t size_{};\n    std::vector<int> data_;\n    std::string tag_{\"unnamed\"};\n};",
+  "note": "Members initialise in declaration order, not in the order you list them."
+ },
+ {
+  "id": "cpp/core-syntax/const-correctness",
+  "lang": "cpp",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "const",
+   "pointer",
+   "top-level"
+  ],
+  "code": "int demo() {\n    int a = 1, b = 2;\n\n    const int* to_const = &a;\n    int* const const_ptr = &a;\n    const int* const both = &a;\n\n    to_const = &b;\n    *const_ptr = 5;\n\n    const int& ref = a;\n    return *to_const + *const_ptr + *both + ref;\n}\n\nstruct Widget {\n    int value{};\n    int get() const { return value; }\n    void set(int v) { value = v; }\n};",
+  "note": "Read declarations right to left: const T* is a pointer to const, T* const is a const pointer."
+ },
+ {
+  "id": "cpp/core-syntax/constexpr-consteval",
+  "lang": "cpp",
+  "topic": "core-syntax",
+  "tier": 3,
+  "tags": [
+   "constexpr",
+   "consteval",
+   "static-assert"
+  ],
+  "code": "#include <array>\n\nconstexpr int factorial(int n) {\n    return n <= 1 ? 1 : n * factorial(n - 1);\n}\n\nconsteval int must_be_compile_time(int n) {\n    return n * n;\n}\n\nconstexpr auto table = [] {\n    std::array<int, 8> out{};\n    for (int i = 0; i < 8; ++i) out[i] = factorial(i);\n    return out;\n}();\n\nstatic_assert(factorial(5) == 120);\nstatic_assert(must_be_compile_time(4) == 16);\nstatic_assert(table[6] == 720);\n\nint demo() { return table.back(); }",
+  "note": "constexpr may run at either time; consteval must run at compile time or fail to compile."
+ },
+ {
+  "id": "cpp/core-syntax/constinit-static",
+  "lang": "cpp",
+  "topic": "core-syntax",
+  "tier": 4,
+  "tags": [
+   "constinit",
+   "static-initialization",
+   "thread-safe"
+  ],
+  "code": "#include <string_view>\n\nconstinit int counter = 0;\nconstinit std::string_view kName = \"engine\";\n\nint& lazy_singleton() {\n    static int value = 41;\n    return value;\n}\n\nstruct Registrar {\n    static inline int registered = 0;\n    Registrar() { ++registered; }\n};\n\nint demo() {\n    ++counter;\n    Registrar r;\n    return counter + static_cast<int>(kName.size()) + lazy_singleton() + Registrar::registered;\n}",
+  "note": "constinit guarantees static initialisation, killing the static initialisation order fiasco."
+ },
+ {
+  "id": "cpp/core-syntax/custom-deleter",
+  "lang": "cpp",
+  "topic": "core-syntax",
+  "tier": 3,
+  "tags": [
+   "unique-ptr",
+   "deleter",
+   "raii"
+  ],
+  "code": "#include <cstdio>\n#include <memory>\n\nstruct FileCloser {\n    void operator()(std::FILE* f) const noexcept {\n        if (f) std::fclose(f);\n    }\n};\n\nusing FilePtr = std::unique_ptr<std::FILE, FileCloser>;\n\nint demo() {\n    FilePtr file{std::fopen(\"/dev/null\", \"w\")};\n    auto arr = std::unique_ptr<int[]>(new int[8]{});\n    auto lambda_owned = std::unique_ptr<int, void (*)(int*)>(new int(5), [](int* p) { delete p; });\n\n    arr[3] = 4;\n    return (file ? 1 : 0) + arr[3] + *lambda_owned;\n}",
+  "note": "A stateless lambda deleter costs nothing extra if you name its type with decltype."
+ },
+ {
+  "id": "cpp/core-syntax/delete-default",
+  "lang": "cpp",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "delete",
+   "default",
+   "non-copyable"
+  ],
+  "code": "class NonCopyable {\npublic:\n    NonCopyable() = default;\n    ~NonCopyable() = default;\n    NonCopyable(const NonCopyable&) = delete;\n    NonCopyable& operator=(const NonCopyable&) = delete;\n    NonCopyable(NonCopyable&&) noexcept = default;\n    NonCopyable& operator=(NonCopyable&&) noexcept = default;\n};\n\nvoid take_int(int) {}\nvoid take_int(double) = delete;\n\nint demo() {\n    NonCopyable a;\n    NonCopyable b(std::move(a));\n    take_int(42);\n    return 0;\n}",
+  "note": "= delete removes an overload from the candidate set, which is stricter than making it private."
+ },
+ {
+  "id": "cpp/core-syntax/enum-class",
+  "lang": "cpp",
+  "topic": "core-syntax",
+  "tier": 1,
+  "tags": [
+   "enum-class",
+   "scoped-enum",
+   "underlying-type"
+  ],
+  "code": "#include <cstdint>\n#include <type_traits>\n\nenum class Color : std::uint8_t { Red, Green, Blue };\nenum class Flags : unsigned { None = 0, Read = 1, Write = 2, Both = Read | Write };\n\nconstexpr Flags operator|(Flags a, Flags b) {\n    return static_cast<Flags>(static_cast<unsigned>(a) | static_cast<unsigned>(b));\n}\n\ntemplate <typename E>\nconstexpr auto underlying(E e) {\n    return static_cast<std::underlying_type_t<E>>(e);\n}\n\nint demo() {\n    Color c = Color::Green;\n    Flags f = Flags::Read | Flags::Write;\n    return static_cast<int>(underlying(c)) + static_cast<int>(underlying(f));\n}",
+  "note": "A scoped enum will not convert to int on its own, which is exactly why it is safer."
+ },
+ {
+  "id": "cpp/core-syntax/exceptions-noexcept",
+  "lang": "cpp",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "exceptions",
+   "noexcept",
+   "raii"
+  ],
+  "code": "#include <stdexcept>\n#include <string>\n\nstruct ParseError : std::runtime_error {\n    int line{};\n    ParseError(int l, const std::string& what)\n        : std::runtime_error(what), line(l) {}\n};\n\nint parse(const std::string& s) noexcept {\n    try {\n        if (s.empty()) throw ParseError(1, \"empty input\");\n        return std::stoi(s);\n    } catch (const ParseError& e) {\n        return -e.line;\n    } catch (const std::exception&) {\n        return -99;\n    }\n}\n\nint demo() { return parse(\"42\") + parse(\"\") + parse(\"abc\"); }",
+  "note": "Catch by const reference; catching by value slices the derived exception down to its base."
+ },
+ {
+  "id": "cpp/core-syntax/explicit-conversions",
+  "lang": "cpp",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "explicit",
+   "conversion",
+   "static-cast"
+  ],
+  "code": "class Meters {\npublic:\n    explicit Meters(double v) : value_(v) {}\n    explicit operator double() const { return value_; }\n    double raw() const { return value_; }\n\nprivate:\n    double value_{};\n};\n\ndouble demo() {\n    Meters m{3.5};\n    double d = static_cast<double>(m);\n    auto squared = static_cast<int>(m.raw() * m.raw());\n    return d + squared + Meters{1.5}.raw();\n}",
+  "note": "explicit blocks the implicit conversion, so a Meters can never silently become an int."
+ },
+ {
+  "id": "cpp/core-syntax/includes-namespaces",
+  "lang": "cpp",
+  "topic": "core-syntax",
+  "tier": 1,
+  "tags": [
+   "namespace",
+   "using",
+   "alias"
+  ],
+  "code": "namespace engine::detail {\n    inline int version() { return 3; }\n    struct Config { int width{800}, height{600}; };\n}\n\nnamespace ed = engine::detail;\nusing engine::detail::Config;\n\nint run() {\n    Config cfg{1024, 768};\n    using std::max;\n    return max(ed::version(), cfg.width - cfg.height);\n}",
+  "note": "A namespace alias shortens the call site without dragging every name into scope."
+ },
+ {
+  "id": "cpp/core-syntax/lambda-captures",
+  "lang": "cpp",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "lambda",
+   "capture",
+   "mutable"
+  ],
+  "code": "#include <vector>\n#include <numeric>\n\nint demo() {\n    int total = 0, factor = 3;\n    std::vector<int> xs{1, 2, 3, 4};\n\n    auto by_ref = [&](int x) { total += x * factor; };\n    auto by_val = [=](int x) { return x * factor + total; };\n    auto counter = [n = 0]() mutable { return ++n; };\n\n    for (int x : xs) by_ref(x);\n    counter(); counter();\n    return total + by_val(2) + counter();\n}",
+  "note": "[=] copies, [&] aliases, and mutable makes the copy writable inside the body."
+ },
+ {
+  "id": "cpp/core-syntax/lambda-generic-iife",
+  "lang": "cpp",
+  "topic": "core-syntax",
+  "tier": 3,
+  "tags": [
+   "lambda",
+   "generic-lambda",
+   "iife"
+  ],
+  "code": "#include <string>\n#include <vector>\n\nint demo() {\n    const auto table = [] {\n        std::vector<int> out;\n        for (int i = 0; i < 8; ++i) out.push_back(i * i);\n        return out;\n    }();\n\n    auto twice = [](auto x) { return x + x; };\n    auto sum = [](auto... xs) { return (xs + ... + 0); };\n\n    return table.back() + twice(3) + static_cast<int>(twice(std::string(\"ab\")).size())\n         + sum(1, 2, 3);\n}",
+  "note": "An immediately-invoked lambda lets you initialise a const with a multi-statement computation."
+ },
+ {
+  "id": "cpp/core-syntax/lambda-in-function",
+  "lang": "cpp",
+  "topic": "core-syntax",
+  "tier": 3,
+  "tags": [
+   "lambda",
+   "std-function",
+   "type-erasure"
+  ],
+  "code": "#include <functional>\n#include <vector>\n\nint apply_erased(const std::function<int(int)>& fn, int x) { return fn(x); }\n\ntemplate <typename F>\nint apply_inline(F&& fn, int x) { return fn(x); }\n\nint demo() {\n    int bias = 10;\n    std::function<int(int)> erased = [bias](int x) { return x * 2 + bias; };\n    std::vector<std::function<int()>> jobs;\n    jobs.emplace_back([] { return 1; });\n    jobs.emplace_back([bias] { return bias; });\n\n    int total = 0;\n    for (const auto& job : jobs) total += job();\n    return apply_erased(erased, 5) + apply_inline([](int x) { return x - 1; }, 3) + total;\n}",
+  "note": "std::function type-erases and may heap-allocate; a template parameter keeps the lambda inline."
+ },
+ {
+  "id": "cpp/core-syntax/move-ctor-assign",
+  "lang": "cpp",
+  "topic": "core-syntax",
+  "tier": 3,
+  "tags": [
+   "move-constructor",
+   "noexcept",
+   "vector-growth"
+  ],
+  "code": "#include <cstddef>\n#include <utility>\n\nclass Blob {\npublic:\n    explicit Blob(std::size_t n) : n_(n), p_(new char[n]) {}\n    ~Blob() { delete[] p_; }\n\n    Blob(Blob&& o) noexcept : n_(o.n_), p_(o.p_) {\n        o.n_ = 0;\n        o.p_ = nullptr;\n    }\n    Blob& operator=(Blob&& o) noexcept {\n        if (this != &o) {\n            delete[] p_;\n            n_ = std::exchange(o.n_, 0);\n            p_ = std::exchange(o.p_, nullptr);\n        }\n        return *this;\n    }\n    Blob(const Blob&) = delete;\n    Blob& operator=(const Blob&) = delete;\n\n    std::size_t size() const noexcept { return n_; }\n\nprivate:\n    std::size_t n_{};\n    char* p_{};\n};",
+  "note": "A noexcept move constructor is what lets vector reallocate by moving instead of copying."
+ },
+ {
+  "id": "cpp/core-syntax/move-semantics",
+  "lang": "cpp",
+  "topic": "core-syntax",
+  "tier": 3,
+  "tags": [
+   "move",
+   "rvalue-reference",
+   "std-move"
+  ],
+  "code": "#include <string>\n#include <utility>\n#include <vector>\n\nstd::vector<std::string> build() {\n    std::vector<std::string> out;\n    out.reserve(4);\n    std::string tmp = \"hello\";\n    out.push_back(tmp);\n    out.push_back(std::move(tmp));\n    out.emplace_back(\"world\");\n    return out;\n}\n\nstd::size_t demo() {\n    auto v = build();\n    auto stolen = std::move(v);\n    v.clear();\n    return stolen.size() + v.size();\n}",
+  "note": "std::move only casts to an rvalue; the moved-from object is valid but unspecified."
+ },
+ {
+  "id": "cpp/core-syntax/operator-overloading",
+  "lang": "cpp",
+  "topic": "core-syntax",
+  "tier": 3,
+  "tags": [
+   "operator-overloading",
+   "spaceship",
+   "stream"
+  ],
+  "code": "#include <compare>\n#include <iostream>\n\nstruct Money {\n    long cents{};\n\n    auto operator<=>(const Money&) const = default;\n    bool operator==(const Money&) const = default;\n\n    Money& operator+=(const Money& o) { cents += o.cents; return *this; }\n    friend Money operator+(Money a, const Money& b) { return a += b; }\n    friend Money operator-(const Money& a) { return Money{-a.cents}; }\n    friend std::ostream& operator<<(std::ostream& os, const Money& m) {\n        return os << m.cents / 100 << '.' << m.cents % 100;\n    }\n};\n\nbool demo() {\n    Money a{1250}, b{99};\n    return (a + b) > a && -a < b && a != b;\n}",
+  "note": "Define <=> and == and the compiler generates the other four relational operators."
+ },
+ {
+  "id": "cpp/core-syntax/operator-subscript-call",
+  "lang": "cpp",
+  "topic": "core-syntax",
+  "tier": 3,
+  "tags": [
+   "operator-overloading",
+   "subscript",
+   "span"
+  ],
+  "code": "#include <cstddef>\n#include <span>\n#include <vector>\n\nclass Grid {\npublic:\n    Grid(int rows, int cols) : rows_(rows), cols_(cols), cells_(rows * cols) {}\n\n    int& operator()(int r, int c) { return cells_[r * cols_ + c]; }\n    const int& operator()(int r, int c) const { return cells_[r * cols_ + c]; }\n\n    std::span<int> operator[](int row) {\n        return {cells_.data() + row * cols_, static_cast<std::size_t>(cols_)};\n    }\n    std::span<const int> operator[](int row) const {\n        return {cells_.data() + row * cols_, static_cast<std::size_t>(cols_)};\n    }\n\nprivate:\n    int rows_{}, cols_{};\n    std::vector<int> cells_;\n};\n\nint demo() {\n    Grid g(3, 3);\n    g(1, 1) = 5;\n    g[2][0] = 7;\n    return g(1, 1) + g[2][0] + static_cast<int>(g[0].size());\n}",
+  "note": "operator() takes several indices; operator[] takes one, so a row view is the natural return."
+ },
+ {
+  "id": "cpp/core-syntax/pragma-once-guard",
+  "lang": "cpp",
+  "topic": "core-syntax",
+  "tier": 1,
+  "tags": [
+   "header",
+   "include-guard",
+   "inline"
+  ],
+  "code": "#ifndef ENGINE_MATH_HPP\n#define ENGINE_MATH_HPP\n\nnamespace engine {\n    inline constexpr double kPi = 3.14159265358979323846;\n\n    inline double circumference(double radius) {\n        return 2.0 * kPi * radius;\n    }\n\n    struct Vec2 {\n        double x{}, y{};\n    };\n}\n\n#endif",
+  "note": "Header guards stop double inclusion; inline lets a definition live in a header legally."
+ },
+ {
+  "id": "cpp/core-syntax/raii-scope-guard",
+  "lang": "cpp",
+  "topic": "core-syntax",
+  "tier": 3,
+  "tags": [
+   "raii",
+   "scope-guard",
+   "destructor"
+  ],
+  "code": "#include <utility>\n\ntemplate <typename F>\nclass ScopeGuard {\npublic:\n    explicit ScopeGuard(F fn) : fn_(std::move(fn)) {}\n    ~ScopeGuard() { if (active_) fn_(); }\n    void dismiss() noexcept { active_ = false; }\n\n    ScopeGuard(const ScopeGuard&) = delete;\n    ScopeGuard& operator=(const ScopeGuard&) = delete;\n\nprivate:\n    F fn_;\n    bool active_{true};\n};\n\nint demo() {\n    int cleaned = 0;\n    {\n        ScopeGuard guard([&] { cleaned = 1; });\n        ScopeGuard skipped([&] { cleaned = 99; });\n        skipped.dismiss();\n    }\n    return cleaned;\n}",
+  "note": "RAII runs the cleanup on every exit path, including the exception you forgot about."
+ },
+ {
+  "id": "cpp/core-syntax/range-for-init-statement",
+  "lang": "cpp",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "range-for",
+   "if-init",
+   "switch"
+  ],
+  "code": "#include <map>\n#include <string>\n#include <vector>\n\nint demo(std::map<std::string, int>& m, const std::vector<int>& xs) {\n    int total = 0;\n    for (auto& [key, value] : m) {\n        value *= 2;\n        total += value;\n    }\n    for (int x : xs) total += x;\n\n    if (auto it = m.find(\"a\"); it != m.end()) total += it->second;\n    switch (int code = total % 3) {\n        case 0: total += 100; break;\n        case 1: [[fallthrough]];\n        case 2: total -= code; break;\n    }\n    return total;\n}",
+  "note": "The init-statement scopes a variable to the if or switch, which kills a whole class of leaks."
+ },
+ {
+  "id": "cpp/core-syntax/references-vs-pointers",
+  "lang": "cpp",
+  "topic": "core-syntax",
+  "tier": 1,
+  "tags": [
+   "reference",
+   "pointer",
+   "nullptr"
+  ],
+  "code": "int add_one(int& ref) { return ++ref; }\nint add_two(int* ptr) { return ptr ? (*ptr += 2) : 0; }\n\nint demo() {\n    int value = 10;\n    int& alias = value;\n    int* pointer = &value;\n\n    alias = 20;\n    *pointer = 30;\n    pointer = nullptr;\n\n    add_one(value);\n    add_two(&value);\n    return value + alias;\n}",
+  "note": "A reference must bind on creation and can never be reseated; a pointer can be null and moved."
+ },
+ {
+  "id": "cpp/core-syntax/rule-of-five",
+  "lang": "cpp",
+  "topic": "core-syntax",
+  "tier": 3,
+  "tags": [
+   "rule-of-five",
+   "move",
+   "destructor"
+  ],
+  "code": "#include <cstddef>\n#include <utility>\n\nclass Owner {\npublic:\n    explicit Owner(std::size_t n) : data_(new int[n]{}), size_(n) {}\n    ~Owner() { delete[] data_; }\n\n    Owner(const Owner& other) : data_(new int[other.size_]), size_(other.size_) {\n        for (std::size_t i = 0; i < size_; ++i) data_[i] = other.data_[i];\n    }\n    Owner& operator=(const Owner& other) {\n        Owner copy(other);\n        swap(copy);\n        return *this;\n    }\n    Owner(Owner&& other) noexcept : data_(other.data_), size_(other.size_) {\n        other.data_ = nullptr;\n        other.size_ = 0;\n    }\n    Owner& operator=(Owner&& other) noexcept {\n        swap(other);\n        return *this;\n    }\n    void swap(Owner& other) noexcept {\n        std::swap(data_, other.data_);\n        std::swap(size_, other.size_);\n    }\n\nprivate:\n    int* data_{};\n    std::size_t size_{};\n};",
+  "note": "Declaring any one of the five suppresses some of the others, so declare all five or none."
+ },
+ {
+  "id": "cpp/core-syntax/shared-weak-ptr",
+  "lang": "cpp",
+  "topic": "core-syntax",
+  "tier": 3,
+  "tags": [
+   "shared-ptr",
+   "weak-ptr",
+   "cycles"
+  ],
+  "code": "#include <memory>\n\nstruct Child;\n\nstruct Parent {\n    std::shared_ptr<Child> child;\n    int id{1};\n};\n\nstruct Child {\n    std::weak_ptr<Parent> parent;\n    int id{2};\n};\n\nint demo() {\n    auto p = std::make_shared<Parent>();\n    auto c = std::make_shared<Child>();\n    p->child = c;\n    c->parent = p;\n\n    int total = static_cast<int>(p.use_count()) + static_cast<int>(c.use_count());\n    if (auto locked = c->parent.lock()) total += locked->id;\n    return total + (c->parent.expired() ? 0 : 100);\n}",
+  "note": "Two shared_ptrs pointing at each other never free; one side must be weak."
+ },
+ {
+  "id": "cpp/core-syntax/struct-vs-class",
+  "lang": "cpp",
+  "topic": "core-syntax",
+  "tier": 1,
+  "tags": [
+   "struct",
+   "class",
+   "access"
+  ],
+  "code": "struct Open {\n    int a{1};\n    int twice() const { return a * 2; }\n};\n\nclass Closed {\npublic:\n    explicit Closed(int v) : a_(v) {}\n    int twice() const { return a_ * 2; }\n\nprivate:\n    int a_{};\n};\n\nclass Derived : public Open {\npublic:\n    int thrice() const { return a * 3; }\n};\n\nint demo() {\n    Open o;\n    Closed c{5};\n    Derived d;\n    return o.twice() + c.twice() + d.thrice();\n}",
+  "note": "struct defaults to public, class to private. That difference is the whole language rule."
+ },
+ {
+  "id": "cpp/core-syntax/structured-bindings",
+  "lang": "cpp",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "structured-bindings",
+   "tuple",
+   "map"
+  ],
+  "code": "#include <map>\n#include <string>\n#include <tuple>\n\nstd::tuple<int, double, std::string> triple() { return {1, 2.5, \"three\"}; }\n\nint demo() {\n    auto [i, d, s] = triple();\n    std::map<std::string, int> counts{{\"a\", 1}, {\"b\", 2}};\n\n    int total = 0;\n    for (const auto& [key, value] : counts) {\n        total += value + static_cast<int>(key.size());\n    }\n    if (auto [it, inserted] = counts.try_emplace(\"c\", 3); inserted) {\n        total += it->second;\n    }\n    return total + i + static_cast<int>(d) + static_cast<int>(s.size());\n}",
+  "note": "Structured bindings work on tuples, pairs, arrays and any struct with public members."
+ },
+ {
+  "id": "cpp/core-syntax/unique-ptr",
+  "lang": "cpp",
+  "topic": "core-syntax",
+  "tier": 2,
+  "tags": [
+   "unique-ptr",
+   "ownership",
+   "make-unique"
+  ],
+  "code": "#include <memory>\n#include <utility>\n#include <vector>\n\nstruct Session {\n    int id{};\n    explicit Session(int i) : id(i) {}\n};\n\nint consume(std::unique_ptr<Session> owned) { return owned->id; }\n\nint demo() {\n    auto s = std::make_unique<Session>(7);\n    std::vector<std::unique_ptr<Session>> pool;\n    pool.push_back(std::make_unique<Session>(1));\n    pool.emplace_back(std::move(s));\n\n    Session* borrowed = pool.back().get();\n    auto released = std::unique_ptr<Session>(pool.back().release());\n    pool.pop_back();\n    return consume(std::move(released)) + borrowed->id + static_cast<int>(pool.size());\n}",
+  "note": "unique_ptr is move-only, so passing one by value transfers ownership visibly at the call site."
+ }
+]

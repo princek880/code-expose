@@ -1,0 +1,330 @@
+[
+ {
+  "id": "cpp/templates-meta/class-template-basics",
+  "lang": "cpp",
+  "topic": "templates-meta",
+  "tier": 2,
+  "tags": [
+   "template",
+   "class-template"
+  ],
+  "code": "#include <utility>\n\ntemplate <typename T>\nclass Box {\npublic:\n    explicit Box(T value) : value_(std::move(value)) {}\n    const T& get() const { return value_; }\n    void set(T value) { value_ = std::move(value); }\n\nprivate:\n    T value_;\n};\n\ntemplate <typename T>\nBox(T) -> Box<T>;\n\nint demo() {\n    Box<int> a(5);\n    Box b(3.5);\n    a.set(a.get() + 1);\n    return a.get() + static_cast<int>(b.get());\n}",
+  "note": "Deduction guides let a class template infer its arguments from the constructor, like std::pair does."
+ },
+ {
+  "id": "cpp/templates-meta/concepts-constrained-auto",
+  "lang": "cpp",
+  "topic": "templates-meta",
+  "tier": 3,
+  "tags": [
+   "concepts",
+   "auto",
+   "subsumption"
+  ],
+  "code": "#include <concepts>\n\nauto add(std::integral auto a, std::integral auto b) {\n    return a + b;\n}\n\ntemplate <std::floating_point T>\nT average(T a, T b) {\n    return (a + b) / 2;\n}\n\nstd::integral auto clamp_positive(std::integral auto x) {\n    return x < 0 ? 0 : x;\n}\n\nint demo() {\n    auto a = add(3, 4);\n    double b = average(1.0, 3.0);\n    auto c = clamp_positive(-5);\n    return a + static_cast<int>(b) + c;\n}",
+  "note": "A concept on auto reads like a type but still constrains the deduced argument at the call site."
+ },
+ {
+  "id": "cpp/templates-meta/concepts-requires-clause",
+  "lang": "cpp",
+  "topic": "templates-meta",
+  "tier": 3,
+  "tags": [
+   "concepts",
+   "requires",
+   "constraint"
+  ],
+  "code": "#include <concepts>\n\ntemplate <typename T>\nrequires std::integral<T>\nT half(T x) {\n    return x / 2;\n}\n\ntemplate <typename T>\nconcept Numeric = std::integral<T> || std::floating_point<T>;\n\ntemplate <Numeric T>\nT doubled(T x) {\n    return x + x;\n}\n\nint demo() {\n    int a = half(10);\n    double b = doubled(1.5);\n    return a + static_cast<int>(b);\n}",
+  "note": "A requires clause is a named boolean gate; the compiler rejects the overload with your message, not a wall of SFINAE."
+ },
+ {
+  "id": "cpp/templates-meta/concepts-requires-expression",
+  "lang": "cpp",
+  "topic": "templates-meta",
+  "tier": 4,
+  "tags": [
+   "concepts",
+   "requires-expression",
+   "custom-concept"
+  ],
+  "code": "#include <concepts>\n#include <cstddef>\n\ntemplate <typename T>\nconcept Container = requires(T t) {\n    { t.size() } -> std::convertible_to<std::size_t>;\n    { t.begin() } -> std::same_as<typename T::iterator>;\n    typename T::value_type;\n};\n\n#include <vector>\n\ntemplate <Container C>\nstd::size_t total_size(const C& c) {\n    return c.size();\n}\n\nint demo() {\n    std::vector<int> v{1, 2, 3};\n    static_assert(Container<std::vector<int>>);\n    static_assert(!Container<int>);\n    return static_cast<int>(total_size(v));\n}",
+  "note": "A requires-expression checks that expressions compile; it never runs them at runtime."
+ },
+ {
+  "id": "cpp/templates-meta/concepts-subsumption",
+  "lang": "cpp",
+  "topic": "templates-meta",
+  "tier": 4,
+  "tags": [
+   "concepts",
+   "subsumption",
+   "overload-resolution"
+  ],
+  "code": "#include <concepts>\n\ntemplate <typename T>\nconcept Animal = requires(T t) { t.speak(); };\n\ntemplate <typename T>\nconcept LoudAnimal = Animal<T> && requires(T t) { t.volume(); };\n\ntemplate <Animal T>\nint describe(T) { return 1; }\n\ntemplate <LoudAnimal T>\nint describe(T) { return 2; }\n\nstruct Dog {\n    void speak() const {}\n    int volume() const { return 11; }\n};\n\nstruct Fish {\n    void speak() const {}\n};\n\nint demo() {\n    return describe(Dog{}) + describe(Fish{});\n}",
+  "note": "The more constrained overload wins only when one concept provably subsumes the other, not merely implies it."
+ },
+ {
+  "id": "cpp/templates-meta/consteval-factory",
+  "lang": "cpp",
+  "topic": "templates-meta",
+  "tier": 4,
+  "tags": [
+   "consteval",
+   "factory",
+   "immediate-function"
+  ],
+  "code": "#include <array>\n#include <string_view>\n\nconsteval std::size_t hash_fnv1a(std::string_view s) {\n    std::size_t h = 14695981039346656037ull;\n    for (char c : s) {\n        h ^= static_cast<unsigned char>(c);\n        h *= 1099511628211ull;\n    }\n    return h;\n}\n\ntemplate <std::size_t N>\nstruct FixedString {\n    char data[N]{};\n    consteval FixedString(const char (&s)[N]) {\n        for (std::size_t i = 0; i < N; ++i) data[i] = s[i];\n    }\n};\n\ntemplate <FixedString Name>\nconsteval std::size_t id_of() {\n    return hash_fnv1a(Name.data);\n}\n\nint demo() {\n    constexpr auto h = hash_fnv1a(\"engine\");\n    constexpr auto id = id_of<\"engine\">();\n    return static_cast<int>((h ^ id) % 1000);\n}",
+  "note": "consteval forces evaluation at compile time; calling it with a runtime argument is a hard error."
+ },
+ {
+  "id": "cpp/templates-meta/constexpr-compile-time-container",
+  "lang": "cpp",
+  "topic": "templates-meta",
+  "tier": 4,
+  "tags": [
+   "constexpr",
+   "compile-time-container",
+   "array"
+  ],
+  "code": "#include <array>\n\ntemplate <int N>\nconstexpr std::array<int, N> make_primes_sieve() {\n    std::array<bool, N> is_composite{};\n    std::array<int, N> primes{};\n    int count = 0;\n    for (int i = 2; i < N; ++i) {\n        if (is_composite[static_cast<unsigned>(i)]) continue;\n        primes[static_cast<unsigned>(count++)] = i;\n        for (int j = i * i; j < N; j += i) is_composite[static_cast<unsigned>(j)] = true;\n    }\n    return primes;\n}\n\nconstexpr auto kPrimes = make_primes_sieve<30>();\nstatic_assert(kPrimes[0] == 2);\nstatic_assert(kPrimes[1] == 3);\nstatic_assert(kPrimes[9] == 29);\n\nint demo() { return kPrimes[5]; }",
+  "note": "A constexpr array lives in read-only memory once fully computed at compile time."
+ },
+ {
+  "id": "cpp/templates-meta/constexpr-recursion",
+  "lang": "cpp",
+  "topic": "templates-meta",
+  "tier": 3,
+  "tags": [
+   "constexpr",
+   "recursion",
+   "compile-time"
+  ],
+  "code": "constexpr unsigned long long fib(int n) {\n    return n < 2 ? static_cast<unsigned long long>(n) : fib(n - 1) + fib(n - 2);\n}\n\nconstexpr int gcd(int a, int b) {\n    while (b) {\n        int t = b;\n        b = a % b;\n        a = t;\n    }\n    return a;\n}\n\nstatic_assert(fib(10) == 55);\nstatic_assert(gcd(48, 18) == 6);\n\nint demo() {\n    constexpr auto f20 = fib(20);\n    return static_cast<int>(f20 % 1000) + gcd(100, 75);\n}",
+  "note": "A constexpr function is an ordinary function that also happens to be usable in a constant expression."
+ },
+ {
+  "id": "cpp/templates-meta/crtp-mixin-chain",
+  "lang": "cpp",
+  "topic": "templates-meta",
+  "tier": 4,
+  "tags": [
+   "crtp",
+   "mixin"
+  ],
+  "code": "template <typename Derived>\nstruct Comparable {\n    bool operator!=(const Derived& o) const {\n        return !(static_cast<const Derived&>(*this) == o);\n    }\n    bool operator<=(const Derived& o) const {\n        const auto& self = static_cast<const Derived&>(*this);\n        return self < o || self == o;\n    }\n};\n\ntemplate <typename Derived>\nstruct Printable {\n    const char* label() const { return \"value\"; }\n};\n\nstruct Point : Comparable<Point>, Printable<Point> {\n    int x{}, y{};\n    Point(int px, int py) : x(px), y(py) {}\n    bool operator==(const Point& o) const { return x == o.x && y == o.y; }\n    bool operator<(const Point& o) const { return x < o.x; }\n};\n\nint demo() {\n    Point a{1, 2}, b{1, 2}, c{3, 4};\n    return (a != c) + (a <= b) + static_cast<int>(a.label()[0]);\n}",
+  "note": "Chaining CRTP mixins stacks static behaviour, each layer casting back to the full derived type."
+ },
+ {
+  "id": "cpp/templates-meta/crtp-static-polymorphism",
+  "lang": "cpp",
+  "topic": "templates-meta",
+  "tier": 4,
+  "tags": [
+   "crtp",
+   "static-polymorphism"
+  ],
+  "code": "template <typename Derived>\nstruct Shape {\n    double area() const {\n        return static_cast<const Derived*>(this)->area_impl();\n    }\n};\n\nstruct Circle : Shape<Circle> {\n    double r;\n    explicit Circle(double radius) : r(radius) {}\n    double area_impl() const { return 3.14159 * r * r; }\n};\n\nstruct Square : Shape<Square> {\n    double s;\n    explicit Square(double side) : s(side) {}\n    double area_impl() const { return s * s; }\n};\n\ntemplate <typename T>\ndouble total_area(const Shape<T>& shape) {\n    return shape.area();\n}\n\nint demo() {\n    Circle c(2.0);\n    Square s(3.0);\n    return static_cast<int>(total_area(c) + total_area(s));\n}",
+  "note": "CRTP dispatches through the derived type at compile time, so there is no vtable and no virtual call."
+ },
+ {
+  "id": "cpp/templates-meta/custom-type-trait",
+  "lang": "cpp",
+  "topic": "templates-meta",
+  "tier": 3,
+  "tags": [
+   "template",
+   "type-trait",
+   "metafunction"
+  ],
+  "code": "#include <type_traits>\n\ntemplate <typename T>\nstruct is_pair : std::false_type {};\n\ntemplate <typename A, typename B>\nstruct is_pair<std::pair<A, B>> : std::true_type {};\n\ntemplate <typename T>\ninline constexpr bool is_pair_v = is_pair<T>::value;\n\ntemplate <typename T>\nstruct rank_of {\n    static constexpr int value = 0;\n};\n\ntemplate <typename T>\nstruct rank_of<T*> {\n    static constexpr int value = 1 + rank_of<T>::value;\n};\n\n#include <utility>\n\nint demo() {\n    static_assert(is_pair_v<std::pair<int, double>>);\n    static_assert(!is_pair_v<int>);\n    static_assert(rank_of<int***>::value == 3);\n    return rank_of<int**>::value;\n}",
+  "note": "A custom trait is just a struct with a static constexpr value; the standard traits are no different."
+ },
+ {
+  "id": "cpp/templates-meta/decltype-auto-return",
+  "lang": "cpp",
+  "topic": "templates-meta",
+  "tier": 4,
+  "tags": [
+   "decltype-auto",
+   "return-type-deduction"
+  ],
+  "code": "#include <vector>\n\nstd::vector<int> data{1, 2, 3, 4};\n\ndecltype(auto) at(std::size_t i) {\n    return (data[i]);\n}\n\nauto at_by_value(std::size_t i) {\n    return data[i];\n}\n\ntemplate <typename F, typename... Args>\ndecltype(auto) invoke_and_forward(F&& f, Args&&... args) {\n    return f(std::forward<Args>(args)...);\n}\n\nint demo() {\n    at(0) = 99;\n    int copy = at_by_value(0);\n    copy += 1;\n    int sum = invoke_and_forward([](int a, int b) { return a + b; }, 3, 4);\n    return data[0] + copy + sum;\n}",
+  "note": "auto in a return type decays like a value; decltype(auto) preserves the reference the expression has."
+ },
+ {
+  "id": "cpp/templates-meta/detection-idiom-expression-sfinae",
+  "lang": "cpp",
+  "topic": "templates-meta",
+  "tier": 4,
+  "tags": [
+   "template",
+   "detection-idiom",
+   "expression-sfinae"
+  ],
+  "code": "#include <type_traits>\n#include <utility>\n\ntemplate <typename T>\nauto call_it(T&& obj) -> decltype(obj(), void()) {\n    obj();\n}\n\nvoid call_it(...) {}\n\ntemplate <typename T, typename U>\nauto less_than(const T& a, const U& b) -> decltype(a < b) {\n    return a < b;\n}\n\nint demo() {\n    int calls = 0;\n    call_it([&] { ++calls; });\n    call_it(42);\n    return calls + static_cast<int>(less_than(1, 2.5));\n}",
+  "note": "A trailing decltype on the expression itself is expression SFINAE, no enable_if machinery needed."
+ },
+ {
+  "id": "cpp/templates-meta/fold-expressions-all-forms",
+  "lang": "cpp",
+  "topic": "templates-meta",
+  "tier": 3,
+  "tags": [
+   "template",
+   "fold-expression",
+   "variadic"
+  ],
+  "code": "#include <string>\n\ntemplate <typename... Ts>\nauto sum_right(Ts... xs) { return (xs + ...); }\n\ntemplate <typename... Ts>\nauto sum_left(Ts... xs) { return (... + xs); }\n\ntemplate <typename... Ts>\nauto sum_init(Ts... xs) { return (xs + ... + 0); }\n\ntemplate <typename... Ts>\nbool all_true(Ts... xs) { return (... && xs); }\n\nint demo() {\n    int a = sum_right(1, 2, 3);\n    int b = sum_left(1, 2, 3);\n    int c = sum_init();\n    bool d = all_true(true, true, 1 > 0);\n    return a + b + c + static_cast<int>(d);\n}",
+  "note": "The four fold forms differ by which side the operator and the ... land on relative to the pack."
+ },
+ {
+  "id": "cpp/templates-meta/full-specialization",
+  "lang": "cpp",
+  "topic": "templates-meta",
+  "tier": 3,
+  "tags": [
+   "template",
+   "specialization"
+  ],
+  "code": "#include <string>\n\ntemplate <typename T>\nstruct Describe {\n    static const char* name() { return \"unknown\"; }\n};\n\ntemplate <>\nstruct Describe<int> {\n    static const char* name() { return \"int\"; }\n};\n\ntemplate <>\nstruct Describe<std::string> {\n    static const char* name() { return \"string\"; }\n};\n\nint demo() {\n    std::string a = Describe<int>::name();\n    std::string b = Describe<std::string>::name();\n    std::string c = Describe<double>::name();\n    return static_cast<int>(a.size() + b.size() + c.size());\n}",
+  "note": "A full specialization must match the primary template's parameter list exactly."
+ },
+ {
+  "id": "cpp/templates-meta/function-template-basics",
+  "lang": "cpp",
+  "topic": "templates-meta",
+  "tier": 2,
+  "tags": [
+   "template",
+   "function-template"
+  ],
+  "code": "template <typename T>\nT max_of(T a, T b) {\n    return a > b ? a : b;\n}\n\ntemplate <typename T, typename U>\nauto add(T a, U b) -> decltype(a + b) {\n    return a + b;\n}\n\nint demo() {\n    int a = max_of(3, 7);\n    double d = max_of(1.5, 0.5);\n    auto mixed = add(3, 4.5);\n    auto explicit_t = max_of<double>(2, 3.9);\n    return a + static_cast<int>(d) + static_cast<int>(mixed) + static_cast<int>(explicit_t);\n}",
+  "note": "The compiler deduces T from the argument; you only spell it out when deduction is ambiguous."
+ },
+ {
+  "id": "cpp/templates-meta/partial-specialization",
+  "lang": "cpp",
+  "topic": "templates-meta",
+  "tier": 3,
+  "tags": [
+   "template",
+   "partial-specialization"
+  ],
+  "code": "template <typename T>\nstruct IsPointer {\n    static constexpr bool value = false;\n};\n\ntemplate <typename T>\nstruct IsPointer<T*> {\n    static constexpr bool value = true;\n};\n\ntemplate <typename K, typename V>\nstruct PairSize {\n    static constexpr int value = 2;\n};\n\ntemplate <typename K>\nstruct PairSize<K, K> {\n    static constexpr int value = 1;\n};\n\nint demo() {\n    static_assert(IsPointer<int*>::value);\n    static_assert(!IsPointer<int>::value);\n    return PairSize<int, double>::value + PairSize<int, int>::value;\n}",
+  "note": "Partial specialization narrows the pattern; it must still leave at least one parameter free."
+ },
+ {
+  "id": "cpp/templates-meta/perfect-forwarding",
+  "lang": "cpp",
+  "topic": "templates-meta",
+  "tier": 3,
+  "tags": [
+   "perfect-forwarding",
+   "forwarding-reference",
+   "std-forward"
+  ],
+  "code": "#include <utility>\n#include <vector>\n\nstruct Widget {\n    int id{};\n    explicit Widget(int i) : id(i) {}\n    Widget(const Widget&) { id = -1; }\n    Widget(Widget&&) noexcept = default;\n};\n\ntemplate <typename T, typename... Args>\nT make(Args&&... args) {\n    return T(std::forward<Args>(args)...);\n}\n\ntemplate <typename Container, typename T>\nvoid push(Container& c, T&& value) {\n    c.push_back(std::forward<T>(value));\n}\n\nint demo() {\n    auto w = make<Widget>(7);\n    std::vector<Widget> v;\n    push(v, Widget(1));\n    Widget named(2);\n    push(v, named);\n    return w.id + v[0].id + v[1].id;\n}",
+  "note": "T&& in a deduced context is a forwarding reference, not an rvalue reference; std::forward restores its value category."
+ },
+ {
+  "id": "cpp/templates-meta/policy-based-design",
+  "lang": "cpp",
+  "topic": "templates-meta",
+  "tier": 4,
+  "tags": [
+   "policy-based-design",
+   "template-parameter"
+  ],
+  "code": "#include <mutex>\n\nstruct NoLock {\n    void lock() {}\n    void unlock() {}\n};\n\nstruct RealLock {\n    std::mutex m;\n    void lock() { m.lock(); }\n    void unlock() { m.unlock(); }\n};\n\ntemplate <typename T, typename LockPolicy = NoLock>\nclass Counter {\npublic:\n    void add(T v) {\n        policy_.lock();\n        value_ += v;\n        policy_.unlock();\n    }\n    T get() const { return value_; }\n\nprivate:\n    T value_{};\n    LockPolicy policy_;\n};\n\nint demo() {\n    Counter<int> fast;\n    Counter<int, RealLock> safe;\n    fast.add(3);\n    safe.add(4);\n    return fast.get() + safe.get();\n}",
+  "note": "Each policy is an independent template parameter, so behaviour is chosen by composing types, not flags."
+ },
+ {
+  "id": "cpp/templates-meta/sfinae-enable-if",
+  "lang": "cpp",
+  "topic": "templates-meta",
+  "tier": 3,
+  "tags": [
+   "template",
+   "sfinae",
+   "enable-if"
+  ],
+  "code": "#include <type_traits>\n\ntemplate <typename T, std::enable_if_t<std::is_integral_v<T>, int> = 0>\nT twice(T x) { return x * 2; }\n\ntemplate <typename T, std::enable_if_t<std::is_floating_point_v<T>, int> = 0>\nT twice(T x) { return x * 2.0; }\n\ntemplate <typename T>\nstd::enable_if_t<std::is_pointer_v<T>, int> address_bits(T p) {\n    return p ? 1 : 0;\n}\n\nint demo() {\n    int a = twice(3);\n    double b = twice(2.5);\n    int c = 5;\n    return a + static_cast<int>(b) + address_bits(&c);\n}",
+  "note": "A substitution failure removes the overload from the set silently instead of erroring."
+ },
+ {
+  "id": "cpp/templates-meta/sfinae-void-t",
+  "lang": "cpp",
+  "topic": "templates-meta",
+  "tier": 4,
+  "tags": [
+   "template",
+   "sfinae",
+   "void-t",
+   "detection-idiom"
+  ],
+  "code": "#include <type_traits>\n#include <vector>\n\ntemplate <typename T, typename = void>\nstruct has_size : std::false_type {};\n\ntemplate <typename T>\nstruct has_size<T, std::void_t<decltype(std::declval<T>().size())>> : std::true_type {};\n\ntemplate <typename T, typename = void>\nstruct has_push_back : std::false_type {};\n\ntemplate <typename T>\nstruct has_push_back<T, std::void_t<decltype(std::declval<T&>().push_back(std::declval<typename T::value_type>()))>>\n    : std::true_type {};\n\nint demo() {\n    static_assert(has_size<std::vector<int>>::value);\n    static_assert(!has_size<int>::value);\n    static_assert(has_push_back<std::vector<int>>::value);\n    return has_size<std::vector<int>>::value + has_push_back<std::vector<int>>::value;\n}",
+  "note": "void_t maps any well-formed expression to void, which is the whole trick behind detection."
+ },
+ {
+  "id": "cpp/templates-meta/tag-dispatch",
+  "lang": "cpp",
+  "topic": "templates-meta",
+  "tier": 3,
+  "tags": [
+   "tag-dispatch",
+   "overload-resolution"
+  ],
+  "code": "#include <iterator>\n\ntemplate <typename It>\nvoid advance_impl(It& it, int n, std::random_access_iterator_tag) {\n    it += n;\n}\n\ntemplate <typename It>\nvoid advance_impl(It& it, int n, std::input_iterator_tag) {\n    while (n-- > 0) ++it;\n}\n\ntemplate <typename It>\nvoid my_advance(It& it, int n) {\n    advance_impl(it, n, typename std::iterator_traits<It>::iterator_category{});\n}\n\n#include <list>\n#include <vector>\n\nint demo() {\n    std::vector<int> v{1, 2, 3, 4, 5};\n    std::list<int> l{1, 2, 3, 4, 5};\n    auto vit = v.begin();\n    auto lit = l.begin();\n    my_advance(vit, 3);\n    my_advance(lit, 2);\n    return *vit + *lit;\n}",
+  "note": "Tag dispatch pushes the branch into overload resolution, so no runtime if survives to the binary."
+ },
+ {
+  "id": "cpp/templates-meta/template-template-param",
+  "lang": "cpp",
+  "topic": "templates-meta",
+  "tier": 4,
+  "tags": [
+   "template",
+   "template-template-parameter"
+  ],
+  "code": "#include <deque>\n#include <vector>\n\ntemplate <template <typename, typename...> class Container, typename T>\nContainer<T> repeat(const T& value, int n) {\n    Container<T> out;\n    for (int i = 0; i < n; ++i) out.push_back(value);\n    return out;\n}\n\nint demo() {\n    auto v = repeat<std::vector>(3, 4);\n    auto d = repeat<std::deque>(std::string(\"x\"), 2);\n    return static_cast<int>(v.size()) + static_cast<int>(d.size());\n}",
+  "note": "A template template parameter binds to the container itself, not to one instantiation of it."
+ },
+ {
+  "id": "cpp/templates-meta/type-traits-basics",
+  "lang": "cpp",
+  "topic": "templates-meta",
+  "tier": 2,
+  "tags": [
+   "template",
+   "type-traits"
+  ],
+  "code": "#include <type_traits>\n\ntemplate <typename T, typename U>\nconstexpr bool same_decayed = std::is_same_v<std::decay_t<T>, std::decay_t<U>>;\n\nint demo() {\n    static_assert(std::is_same_v<int, int>);\n    static_assert(!std::is_same_v<int, const int>);\n    static_assert(same_decayed<int&, int>);\n    static_assert(std::is_same_v<std::remove_reference_t<int&>, int>);\n    static_assert(std::is_same_v<std::conditional_t<(1 < 2), int, double>, int>);\n    static_assert(std::is_invocable_v<decltype([](int) {}), int>);\n    return 0;\n}",
+  "note": "is_same_v compares types exactly, so int and const int are already considered different."
+ },
+ {
+  "id": "cpp/templates-meta/typelist-metafunction",
+  "lang": "cpp",
+  "topic": "templates-meta",
+  "tier": 4,
+  "tags": [
+   "metaprogramming",
+   "typelist",
+   "compile-time-list"
+  ],
+  "code": "#include <type_traits>\n\ntemplate <typename... Ts>\nstruct TypeList {};\n\ntemplate <typename List>\nstruct Length;\n\ntemplate <typename... Ts>\nstruct Length<TypeList<Ts...>> {\n    static constexpr int value = sizeof...(Ts);\n};\n\ntemplate <typename T, typename List>\nstruct PushFront;\n\ntemplate <typename T, typename... Ts>\nstruct PushFront<T, TypeList<Ts...>> {\n    using type = TypeList<T, Ts...>;\n};\n\ntemplate <typename List>\nstruct Front;\n\ntemplate <typename T, typename... Ts>\nstruct Front<TypeList<T, Ts...>> {\n    using type = T;\n};\n\nusing List = TypeList<int, double, char>;\nusing Pushed = PushFront<bool, List>::type;\n\nstatic_assert(Length<List>::value == 3);\nstatic_assert(Length<Pushed>::value == 4);\nstatic_assert(std::is_same_v<Front<Pushed>::type, bool>);\n\nint demo() { return Length<List>::value + Length<Pushed>::value; }",
+  "note": "A typelist is just a struct that never gets instantiated; all the work happens in its template arguments."
+ },
+ {
+  "id": "cpp/templates-meta/variadic-parameter-pack",
+  "lang": "cpp",
+  "topic": "templates-meta",
+  "tier": 3,
+  "tags": [
+   "template",
+   "variadic",
+   "parameter-pack"
+  ],
+  "code": "#include <cstddef>\n\ntemplate <typename... Args>\nconstexpr std::size_t count_args(Args&&...) {\n    return sizeof...(Args);\n}\n\ntemplate <typename First, typename... Rest>\nFirst first_of(First f, Rest...) {\n    return f;\n}\n\nvoid log_all() {}\n\ntemplate <typename First, typename... Rest>\nvoid log_all(First f, Rest... rest) {\n    (void)f;\n    log_all(rest...);\n}\n\nint demo() {\n    log_all(1, 2.0, \"three\");\n    return static_cast<int>(count_args(1, 2, 3)) + first_of(10, 20, 30);\n}",
+  "note": "sizeof...(Args) counts the pack at compile time and costs nothing at runtime."
+ }
+]

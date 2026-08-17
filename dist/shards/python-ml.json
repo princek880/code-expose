@@ -1,0 +1,459 @@
+[
+ {
+  "id": "python/ml/backprop-two-layer",
+  "lang": "python",
+  "topic": "ml",
+  "tier": 4,
+  "tags": [
+   "ml",
+   "backprop",
+   "chain-rule"
+  ],
+  "code": "import numpy as np\n\ndef train(X, y, hidden=16, lr=0.1, epochs=3000, seed=0):\n    rng = np.random.default_rng(seed)\n    W1 = rng.normal(0, 0.5, (X.shape[1], hidden))\n    b1 = np.zeros(hidden)\n    W2 = rng.normal(0, 0.5, (hidden, 1))\n    b2 = np.zeros(1)\n    for _ in range(epochs):\n        h = np.tanh(X @ W1 + b1)\n        out = h @ W2 + b2\n        d_out = 2 * (out - y[:, None]) / len(y)\n        d_W2 = h.T @ d_out\n        d_b2 = d_out.sum(axis=0)\n        d_h = d_out @ W2.T * (1 - h ** 2)\n        d_W1 = X.T @ d_h\n        d_b1 = d_h.sum(axis=0)\n        W1 -= lr * d_W1\n        b1 -= lr * d_b1\n        W2 -= lr * d_W2\n        b2 -= lr * d_b2\n    return lambda Z: (np.tanh(Z @ W1 + b1) @ W2 + b2).ravel()\n\nX = np.array([[0.0, 0], [0, 1], [1, 0], [1, 1]])\ny = np.array([0.0, 1, 1, 0])\nf = train(X, y)\nprint(f(X).round(2), np.abs(f(X) - y).max() < 0.1)",
+  "note": "Backward is the forward graph reversed: each layer receives dL/dout and returns dL/din."
+ },
+ {
+  "id": "python/ml/decision-tree-split",
+  "lang": "python",
+  "topic": "ml",
+  "tier": 3,
+  "tags": [
+   "ml",
+   "decision-tree",
+   "gini",
+   "entropy"
+  ],
+  "code": "import numpy as np\n\ndef gini(y):\n    if len(y) == 0:\n        return 0.0\n    p = np.bincount(y) / len(y)\n    return 1.0 - (p ** 2).sum()\n\ndef entropy(y):\n    if len(y) == 0:\n        return 0.0\n    p = np.bincount(y) / len(y)\n    p = p[p > 0]\n    return float(-(p * np.log2(p)).sum())\n\ndef best_split(X, y, criterion=gini):\n    best = (np.inf, None, None)\n    for col in range(X.shape[1]):\n        for thr in np.unique(X[:, col]):\n            left = X[:, col] <= thr\n            n = len(y)\n            score = left.sum() / n * criterion(y[left]) + (~left).sum() / n * criterion(y[~left])\n            if score < best[0]:\n                best = (score, col, float(thr))\n    return best\n\nrng = np.random.default_rng(0)\nX = np.vstack([rng.normal(0, 1, (80, 2)), rng.normal(4, 1, (80, 2))])\ny = np.r_[np.zeros(80, int), np.ones(80, int)]\nprint(best_split(X, y)[1:], round(gini(y), 3), round(entropy(y), 3))",
+  "note": "Both criteria reward pure children; gini is cheaper because it avoids the logarithm."
+ },
+ {
+  "id": "python/ml/kmeans-plusplus",
+  "lang": "python",
+  "topic": "ml",
+  "tier": 3,
+  "tags": [
+   "ml",
+   "kmeans",
+   "initialization"
+  ],
+  "code": "import numpy as np\n\ndef kmeans_plusplus(X, k, seed=0):\n    rng = np.random.default_rng(seed)\n    centres = [X[rng.integers(len(X))]]\n    for _ in range(k - 1):\n        d2 = np.min(((X[:, None, :] - np.array(centres)[None]) ** 2).sum(axis=2), axis=1)\n        probs = d2 / d2.sum()\n        centres.append(X[rng.choice(len(X), p=probs)])\n    return np.array(centres)\n\nrng = np.random.default_rng(2)\nX = np.vstack([rng.normal([0, 0], 0.3, (100, 2)),\n               rng.normal([5, 0], 0.3, (100, 2)),\n               rng.normal([0, 5], 0.3, (100, 2))])\nc = kmeans_plusplus(X, 3)\nspread = ((c[:, None, :] - c[None, :, :]) ** 2).sum(axis=2)\nprint(c.shape, spread[np.triu_indices(3, 1)].min() > 4)",
+  "note": "k-means++ samples each new centre proportional to squared distance, which kills bad seeds."
+ },
+ {
+  "id": "python/ml/kmeans-scratch",
+  "lang": "python",
+  "topic": "ml",
+  "tier": 2,
+  "tags": [
+   "ml",
+   "kmeans",
+   "lloyd"
+  ],
+  "code": "import numpy as np\n\ndef kmeans(X, k, iters=100, seed=0):\n    rng = np.random.default_rng(seed)\n    centres = X[rng.choice(len(X), k, replace=False)]\n    for _ in range(iters):\n        d = ((X[:, None, :] - centres[None, :, :]) ** 2).sum(axis=2)\n        labels = d.argmin(axis=1)\n        new = np.array([X[labels == j].mean(axis=0) if (labels == j).any() else centres[j]\n                        for j in range(k)])\n        if np.allclose(new, centres):\n            break\n        centres = new\n    return centres, labels\n\nrng = np.random.default_rng(1)\nX = np.vstack([rng.normal([0, 0], 0.4, (120, 2)), rng.normal([4, 4], 0.4, (120, 2))])\ncentres, labels = kmeans(X, 2)\nprint(np.sort(centres[:, 0]).round(1), len(set(labels.tolist())))",
+  "note": "Lloyd's algorithm alternates assign and recentre; it converges but not necessarily to the optimum."
+ },
+ {
+  "id": "python/ml/knn-scratch",
+  "lang": "python",
+  "topic": "ml",
+  "tier": 2,
+  "tags": [
+   "ml",
+   "knn",
+   "distance"
+  ],
+  "code": "import numpy as np\nfrom collections import Counter\n\ndef knn_predict(X_train, y_train, X_query, k=3):\n    d = np.sqrt(((X_query[:, None, :] - X_train[None, :, :]) ** 2).sum(axis=2))\n    idx = np.argsort(d, axis=1)[:, :k]\n    return np.array([Counter(y_train[row].tolist()).most_common(1)[0][0] for row in idx])\n\nrng = np.random.default_rng(0)\nX = np.vstack([rng.normal(-2, 0.6, (60, 2)), rng.normal(2, 0.6, (60, 2))])\ny = np.r_[np.zeros(60, int), np.ones(60, int)]\nprint((knn_predict(X, y, X, k=5) == y).mean() > 0.95)\nprint(knn_predict(X, y, np.array([[-2.0, -2.0], [2.0, 2.0]]), k=3))",
+  "note": "kNN has no training step; all the cost is at query time, which is why indexes exist."
+ },
+ {
+  "id": "python/ml/linear-regression-scratch",
+  "lang": "python",
+  "topic": "ml",
+  "tier": 2,
+  "tags": [
+   "ml",
+   "linear-regression",
+   "normal-equation"
+  ],
+  "code": "import numpy as np\n\ndef fit_normal(X, y):\n    Xb = np.hstack([np.ones((len(X), 1)), X])\n    return np.linalg.solve(Xb.T @ Xb, Xb.T @ y)\n\ndef fit_gd(X, y, lr=0.05, iters=5000):\n    Xb = np.hstack([np.ones((len(X), 1)), X])\n    w = np.zeros(Xb.shape[1])\n    for _ in range(iters):\n        w -= lr * Xb.T @ (Xb @ w - y) / len(y)\n    return w\n\nrng = np.random.default_rng(0)\nX = rng.normal(size=(200, 3))\ny = X @ np.array([1.5, -2.0, 0.5]) + 4.0 + rng.normal(0, 0.1, 200)\nprint(fit_normal(X, y).round(3), np.allclose(fit_normal(X, y), fit_gd(X, y), atol=1e-3))",
+  "note": "The normal equation is exact but O(d**3); gradient descent scales when d is large."
+ },
+ {
+  "id": "python/ml/logistic-regression-scratch",
+  "lang": "python",
+  "topic": "ml",
+  "tier": 3,
+  "tags": [
+   "ml",
+   "logistic-regression",
+   "sigmoid"
+  ],
+  "code": "import numpy as np\n\ndef sigmoid(z):\n    return np.where(z >= 0, 1 / (1 + np.exp(-z)), np.exp(z) / (1 + np.exp(z)))\n\ndef fit(X, y, lr=0.2, iters=4000):\n    Xb = np.hstack([np.ones((len(X), 1)), X])\n    w = np.zeros(Xb.shape[1])\n    for _ in range(iters):\n        w -= lr * Xb.T @ (sigmoid(Xb @ w) - y) / len(y)\n    return w\n\ndef predict(X, w):\n    return (sigmoid(np.hstack([np.ones((len(X), 1)), X]) @ w) >= 0.5).astype(int)\n\nrng = np.random.default_rng(0)\nX = np.vstack([rng.normal(-1.5, 1, (150, 2)), rng.normal(1.5, 1, (150, 2))])\ny = np.r_[np.zeros(150), np.ones(150)]\nw = fit(X, y)\nprint(w.round(3), (predict(X, w) == y).mean() > 0.94)",
+  "note": "The gradient of log-loss with a sigmoid is X.T @ (sigma(Xw) - y): no sigmoid derivative survives."
+ },
+ {
+  "id": "python/ml/losses-classification",
+  "lang": "python",
+  "topic": "ml",
+  "tier": 3,
+  "tags": [
+   "ml",
+   "loss",
+   "cross-entropy",
+   "focal"
+  ],
+  "code": "import numpy as np\n\ndef cross_entropy(y, p, eps=1e-12):\n    p = np.clip(p, eps, 1 - eps)\n    return float(-(y * np.log(p) + (1 - y) * np.log(1 - p)).mean())\n\ndef hinge(y_pm1, scores):\n    return float(np.maximum(0, 1 - y_pm1 * scores).mean())\n\ndef focal(y, p, gamma=2.0, eps=1e-12):\n    p = np.clip(p, eps, 1 - eps)\n    pt = np.where(y == 1, p, 1 - p)\n    return float((-(1 - pt) ** gamma * np.log(pt)).mean())\n\ny = np.array([1.0, 0, 1, 0])\np = np.array([0.9, 0.2, 0.55, 0.4])\nprint(round(cross_entropy(y, p), 4), round(focal(y, p), 4))\nprint(round(hinge(np.array([1.0, -1, 1, -1]), np.array([2.0, -0.5, 0.3, 1.2])), 4))",
+  "note": "Clip probabilities before the log, or a confident wrong prediction returns infinity."
+ },
+ {
+  "id": "python/ml/losses-kl-divergence",
+  "lang": "python",
+  "topic": "ml",
+  "tier": 3,
+  "tags": [
+   "ml",
+   "kl-divergence",
+   "softmax"
+  ],
+  "code": "import numpy as np\n\ndef softmax(z, axis=-1):\n    z = z - z.max(axis=axis, keepdims=True)\n    e = np.exp(z)\n    return e / e.sum(axis=axis, keepdims=True)\n\ndef kl(p, q, eps=1e-12):\n    p, q = np.clip(p, eps, 1), np.clip(q, eps, 1)\n    return float((p * np.log(p / q)).sum())\n\ndef js(p, q):\n    m = (p + q) / 2\n    return 0.5 * kl(p, m) + 0.5 * kl(q, m)\n\np = softmax(np.array([2.0, 1.0, 0.1]))\nq = softmax(np.array([1.0, 1.0, 1.0]))\nprint(p.round(4), round(kl(p, q), 4), round(kl(q, p), 4))\nprint(round(js(p, q), 4), kl(p, q) != kl(q, p), abs(kl(p, p)) < 1e-9)",
+  "note": "KL is not symmetric, and it is infinite wherever p is positive and q is zero."
+ },
+ {
+  "id": "python/ml/losses-regression",
+  "lang": "python",
+  "topic": "ml",
+  "tier": 2,
+  "tags": [
+   "ml",
+   "loss",
+   "huber"
+  ],
+  "code": "import numpy as np\n\ndef mse(y, p):\n    return float(((y - p) ** 2).mean())\n\ndef mae(y, p):\n    return float(np.abs(y - p).mean())\n\ndef huber(y, p, delta=1.0):\n    r = np.abs(y - p)\n    quad = 0.5 * r ** 2\n    lin = delta * (r - 0.5 * delta)\n    return float(np.where(r <= delta, quad, lin).mean())\n\ny = np.array([1.0, 2.0, 3.0, 4.0])\np = np.array([1.1, 1.9, 3.2, 40.0])\nprint(round(mse(y, p), 2), round(mae(y, p), 2), round(huber(y, p), 2))\nprint(huber(y, p) < mse(y, p))",
+  "note": "Huber is quadratic near zero and linear in the tail, so one outlier cannot dominate the gradient."
+ },
+ {
+  "id": "python/ml/naive-bayes-scratch",
+  "lang": "python",
+  "topic": "ml",
+  "tier": 3,
+  "tags": [
+   "ml",
+   "naive-bayes",
+   "log-probability"
+  ],
+  "code": "import numpy as np\n\ndef fit(X, y):\n    classes = np.unique(y)\n    priors = np.array([(y == c).mean() for c in classes])\n    means = np.array([X[y == c].mean(axis=0) for c in classes])\n    varis = np.array([X[y == c].var(axis=0) + 1e-9 for c in classes])\n    return classes, np.log(priors), means, varis\n\ndef predict(X, model):\n    classes, log_prior, mu, var = model\n    ll = -0.5 * (np.log(2 * np.pi * var) + (X[:, None, :] - mu) ** 2 / var).sum(axis=2)\n    return classes[(ll + log_prior).argmax(axis=1)]\n\nrng = np.random.default_rng(0)\nX = np.vstack([rng.normal(-1, 1, (200, 4)), rng.normal(1, 1, (200, 4))])\ny = np.r_[np.zeros(200, int), np.ones(200, int)]\nprint((predict(X, fit(X, y)) == y).mean() > 0.85)",
+  "note": "Sum log-probabilities instead of multiplying: with hundreds of features the product underflows."
+ },
+ {
+  "id": "python/ml/pca-scratch",
+  "lang": "python",
+  "topic": "ml",
+  "tier": 3,
+  "tags": [
+   "ml",
+   "pca",
+   "svd"
+  ],
+  "code": "import numpy as np\n\ndef pca(X, k=2):\n    Xc = X - X.mean(axis=0)\n    U, s, Vt = np.linalg.svd(Xc, full_matrices=False)\n    explained = s ** 2 / (s ** 2).sum()\n    return Xc @ Vt[:k].T, Vt[:k], explained[:k]\n\nrng = np.random.default_rng(0)\nbase = rng.normal(size=(300, 2)) @ np.array([[3.0, 1.0], [0.0, 0.2]])\nX = np.hstack([base, base @ np.array([[0.5], [0.5]]) + rng.normal(0, 0.01, (300, 1))])\nscores, comps, ev = pca(X, 2)\nprint(scores.shape, ev.round(3), ev.sum() > 0.99)",
+  "note": "Centre first or the first component just points at the mean; SVD beats forming the covariance."
+ },
+ {
+  "id": "python/ml/ridge-regression-scratch",
+  "lang": "python",
+  "topic": "ml",
+  "tier": 3,
+  "tags": [
+   "ml",
+   "ridge",
+   "regularization"
+  ],
+  "code": "import numpy as np\n\ndef ridge(X, y, alpha=1.0):\n    Xb = np.hstack([np.ones((len(X), 1)), X])\n    penalty = np.eye(Xb.shape[1]) * alpha\n    penalty[0, 0] = 0.0\n    return np.linalg.solve(Xb.T @ Xb + penalty, Xb.T @ y)\n\nrng = np.random.default_rng(1)\nX = rng.normal(size=(50, 8))\nX[:, 1] = X[:, 0] + rng.normal(0, 1e-3, 50)\ny = X @ np.arange(8) + rng.normal(0, 0.5, 50)\nsmall, large = ridge(X, y, 1e-6), ridge(X, y, 10.0)\nprint(np.abs(small).max().round(2), np.abs(large).max().round(2))\nprint(np.linalg.norm(large[1:]) < np.linalg.norm(small[1:]))",
+  "note": "Never penalise the intercept: shrink it and the model can no longer centre the target."
+ },
+ {
+  "id": "python/ml/sklearn-column-transformer",
+  "lang": "python",
+  "topic": "ml",
+  "tier": 3,
+  "tags": [
+   "sklearn",
+   "column-transformer",
+   "preprocessing"
+  ],
+  "code": "import numpy as np\nfrom sklearn.compose import ColumnTransformer\nfrom sklearn.preprocessing import StandardScaler, OneHotEncoder\nfrom sklearn.impute import SimpleImputer\nfrom sklearn.pipeline import Pipeline\n\nnumeric = Pipeline([(\"impute\", SimpleImputer(strategy=\"median\")), (\"scale\", StandardScaler())])\ncategorical = Pipeline([\n    (\"impute\", SimpleImputer(strategy=\"most_frequent\")),\n    (\"hot\", OneHotEncoder(handle_unknown=\"ignore\", sparse_output=False)),\n])\npre = ColumnTransformer([(\"num\", numeric, [0, 1]), (\"cat\", categorical, [2])])\n\nX = np.array([[1.0, 2.0, 0], [np.nan, 3.0, 1], [3.0, np.nan, 1], [4.0, 5.0, 2]])\nout = pre.fit_transform(X)\nprint(out.shape, out[:, :2].mean(axis=0).round(6))",
+  "note": "ColumnTransformer routes each column group to its own encoder and concatenates the result."
+ },
+ {
+  "id": "python/ml/sklearn-custom-transformer",
+  "lang": "python",
+  "topic": "ml",
+  "tier": 3,
+  "tags": [
+   "sklearn",
+   "transformer",
+   "api"
+  ],
+  "code": "import numpy as np\nfrom sklearn.base import BaseEstimator, TransformerMixin\nfrom sklearn.pipeline import make_pipeline\nfrom sklearn.linear_model import LinearRegression\n\nclass ClipOutliers(BaseEstimator, TransformerMixin):\n    def __init__(self, quantile=0.99):\n        self.quantile = quantile\n\n    def fit(self, X, y=None):\n        self.lo_ = np.quantile(X, 1 - self.quantile, axis=0)\n        self.hi_ = np.quantile(X, self.quantile, axis=0)\n        return self\n\n    def transform(self, X):\n        return np.clip(X, self.lo_, self.hi_)\n\nrng = np.random.default_rng(0)\nX = rng.normal(size=(200, 3))\nX[0] = 50.0\nmodel = make_pipeline(ClipOutliers(0.95), LinearRegression())\nmodel.fit(X, X.sum(axis=1))\nprint(model.named_steps[\"clipoutliers\"].hi_.round(2), round(model.score(X, X.sum(axis=1)), 3))",
+  "note": "Implement fit and transform and inherit the two mixins; that is the entire estimator contract."
+ },
+ {
+  "id": "python/ml/sklearn-grid-search",
+  "lang": "python",
+  "topic": "ml",
+  "tier": 3,
+  "tags": [
+   "sklearn",
+   "grid-search",
+   "cross-validation"
+  ],
+  "code": "import numpy as np\nfrom sklearn.model_selection import GridSearchCV, cross_val_score\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.preprocessing import StandardScaler\nfrom sklearn.linear_model import Ridge\n\npipe = Pipeline([(\"scale\", StandardScaler()), (\"model\", Ridge())])\ngrid = {\"model__alpha\": [0.01, 0.1, 1.0, 10.0, 100.0]}\n\nrng = np.random.default_rng(0)\nX = rng.normal(size=(120, 5))\ny = X @ np.arange(5) + rng.normal(0, 1.0, 120)\n\nsearch = GridSearchCV(pipe, grid, cv=4, scoring=\"neg_mean_squared_error\")\nsearch.fit(X, y)\nprint(search.best_params_, round(-search.best_score_, 3))\nprint(cross_val_score(pipe, X, y, cv=4, scoring=\"r2\").round(3))",
+  "note": "Prefix the grid keys with the step name so the search can reach nested estimator parameters."
+ },
+ {
+  "id": "python/ml/sklearn-metrics",
+  "lang": "python",
+  "topic": "ml",
+  "tier": 2,
+  "tags": [
+   "sklearn",
+   "metrics",
+   "confusion-matrix"
+  ],
+  "code": "import numpy as np\nfrom sklearn.metrics import (accuracy_score, precision_recall_fscore_support,\n                             confusion_matrix, roc_auc_score, classification_report)\n\nrng = np.random.default_rng(0)\ny_true = (rng.random(400) < 0.1).astype(int)\nscores = np.clip(y_true * 0.6 + rng.random(400) * 0.5, 0, 1)\ny_pred = (scores > 0.5).astype(int)\n\nprint(round(accuracy_score(y_true, y_pred), 3), round(roc_auc_score(y_true, scores), 3))\np, r, f1, _ = precision_recall_fscore_support(y_true, y_pred, average=\"binary\", zero_division=0)\nprint(round(p, 3), round(r, 3), round(f1, 3))\nprint(confusion_matrix(y_true, y_pred).ravel())",
+  "note": "Accuracy is meaningless under imbalance; read precision, recall and the matrix instead."
+ },
+ {
+  "id": "python/ml/sklearn-pipeline",
+  "lang": "python",
+  "topic": "ml",
+  "tier": 2,
+  "tags": [
+   "sklearn",
+   "pipeline",
+   "leakage"
+  ],
+  "code": "import numpy as np\nfrom sklearn.pipeline import Pipeline, make_pipeline\nfrom sklearn.preprocessing import StandardScaler, PolynomialFeatures\nfrom sklearn.linear_model import LogisticRegression\n\npipe = Pipeline([\n    (\"scale\", StandardScaler()),\n    (\"poly\", PolynomialFeatures(degree=2, include_bias=False)),\n    (\"clf\", LogisticRegression(max_iter=1000)),\n])\n\nrng = np.random.default_rng(0)\nX = rng.normal(size=(300, 3))\ny = ((X ** 2).sum(axis=1) > 3).astype(int)\npipe.fit(X, y)\nprint(round(pipe.score(X, y), 3), pipe.named_steps[\"poly\"].n_output_features_)\nprint(make_pipeline(StandardScaler(), LogisticRegression()).steps[0][0])",
+  "note": "Fitting the scaler inside the pipeline is what stops test statistics leaking into training."
+ },
+ {
+  "id": "python/ml/sklearn-train-test-split",
+  "lang": "python",
+  "topic": "ml",
+  "tier": 2,
+  "tags": [
+   "sklearn",
+   "split",
+   "stratify"
+  ],
+  "code": "import numpy as np\nfrom sklearn.model_selection import train_test_split, StratifiedKFold\n\nrng = np.random.default_rng(0)\nX = rng.normal(size=(200, 4))\ny = (rng.random(200) < 0.15).astype(int)\n\nX_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.25, stratify=y, random_state=0)\nprint(X_tr.shape, X_te.shape, round(y_tr.mean(), 3), round(y_te.mean(), 3))\n\nskf = StratifiedKFold(n_splits=4, shuffle=True, random_state=0)\nprint([round(y[te].mean(), 2) for _, te in skf.split(X, y)])",
+  "note": "Stratify on the label whenever the classes are imbalanced, or a fold can miss a class entirely."
+ },
+ {
+  "id": "python/ml/svm-dual-sketch",
+  "lang": "python",
+  "topic": "ml",
+  "tier": 4,
+  "tags": [
+   "ml",
+   "svm",
+   "dual",
+   "kernel"
+  ],
+  "code": "import numpy as np\n\ndef rbf(A, B, gamma=0.5):\n    d2 = ((A[:, None, :] - B[None, :, :]) ** 2).sum(axis=2)\n    return np.exp(-gamma * d2)\n\ndef fit_dual(X, y, C=1.0, lr=1e-3, iters=3000, gamma=0.5):\n    K = rbf(X, X, gamma) * np.outer(y, y)\n    alpha = np.zeros(len(y))\n    for _ in range(iters):\n        alpha = np.clip(alpha + lr * (1 - K @ alpha), 0, C)\n    return alpha\n\ndef decide(X_train, y, alpha, X_query, gamma=0.5):\n    return (alpha * y) @ rbf(X_train, X_query, gamma)\n\nrng = np.random.default_rng(0)\nX = np.vstack([rng.normal(-1.2, 0.5, (60, 2)), rng.normal(1.2, 0.5, (60, 2))])\ny = np.r_[-np.ones(60), np.ones(60)]\na = fit_dual(X, y)\nprint((np.sign(decide(X, y, a, X)) == y).mean() > 0.95, (a > 1e-6).sum() <= len(y))",
+  "note": "The dual depends on data only through the kernel, which is exactly what allows the kernel trick."
+ },
+ {
+  "id": "python/ml/torch-autograd-basics",
+  "lang": "python",
+  "topic": "ml",
+  "tier": 3,
+  "tags": [
+   "pytorch",
+   "autograd",
+   "grad"
+  ],
+  "code": "import torch\n\nx = torch.tensor([2.0, 3.0], requires_grad=True)\ny = (x ** 3).sum() + x.prod()\ny.backward(retain_graph=True)\nprint(x.grad)\n\nx.grad.zero_()\ng = torch.autograd.grad(y, x, create_graph=True)[0]\nh = torch.autograd.grad(g.sum(), x)[0]\nprint(g.detach(), h)\n\nwith torch.no_grad():\n    z = x * 2\nprint(z.requires_grad, x.detach().requires_grad)",
+  "note": "backward accumulates into .grad; retain_graph keeps the tape alive for a second backward pass."
+ },
+ {
+  "id": "python/ml/torch-checkpoint-save-load",
+  "lang": "python",
+  "topic": "ml",
+  "tier": 2,
+  "tags": [
+   "pytorch",
+   "checkpoint",
+   "state-dict"
+  ],
+  "code": "import io\nimport torch\nimport torch.nn as nn\n\nmodel = nn.Sequential(nn.Linear(4, 8), nn.ReLU(), nn.Linear(8, 2))\nopt = torch.optim.Adam(model.parameters(), lr=1e-3)\n\nbuffer = io.BytesIO()\ntorch.save({\"epoch\": 7, \"model\": model.state_dict(), \"opt\": opt.state_dict()}, buffer)\n\nbuffer.seek(0)\nckpt = torch.load(buffer, weights_only=True)\nrestored = nn.Sequential(nn.Linear(4, 8), nn.ReLU(), nn.Linear(8, 2))\nrestored.load_state_dict(ckpt[\"model\"])\nprint(ckpt[\"epoch\"], sorted(ckpt)[:2])\nprint(torch.allclose(model[0].weight, restored[0].weight))",
+  "note": "Save state_dicts, not modules: a pickled module breaks the moment the class definition moves."
+ },
+ {
+  "id": "python/ml/torch-custom-autograd-function",
+  "lang": "python",
+  "topic": "ml",
+  "tier": 4,
+  "tags": [
+   "pytorch",
+   "autograd",
+   "custom-function"
+  ],
+  "code": "import torch\n\nclass ClampGrad(torch.autograd.Function):\n    @staticmethod\n    def forward(ctx, x, limit):\n        ctx.save_for_backward(x)\n        ctx.limit = limit\n        return x.clamp(min=0)\n\n    @staticmethod\n    def backward(ctx, grad_out):\n        (x,) = ctx.saved_tensors\n        grad = grad_out * (x > 0).to(grad_out.dtype)\n        return grad.clamp(-ctx.limit, ctx.limit), None\n\nx = torch.tensor([-1.0, 0.5, 3.0], requires_grad=True)\nout = ClampGrad.apply(x, 0.4)\nout.backward(torch.tensor([1.0, 10.0, -10.0]))\nprint(out.detach(), x.grad)",
+  "note": "save_for_backward stores what backward needs; the return count must match forward's inputs."
+ },
+ {
+  "id": "python/ml/torch-dataset-dataloader",
+  "lang": "python",
+  "topic": "ml",
+  "tier": 2,
+  "tags": [
+   "pytorch",
+   "dataset",
+   "dataloader"
+  ],
+  "code": "import torch\nfrom torch.utils.data import Dataset, DataLoader\n\nclass Windows(Dataset):\n    def __init__(self, series, width):\n        self.series, self.width = series, width\n\n    def __len__(self):\n        return len(self.series) - self.width\n\n    def __getitem__(self, i):\n        x = self.series[i:i + self.width]\n        y = self.series[i + self.width]\n        return x.clone(), y.clone()\n\ndata = torch.arange(100, dtype=torch.float32)\nloader = DataLoader(Windows(data, 8), batch_size=16, shuffle=True, drop_last=True)\nxb, yb = next(iter(loader))\nprint(xb.shape, yb.shape, len(loader))",
+  "note": "A Dataset needs only __len__ and __getitem__; the DataLoader supplies batching and shuffling."
+ },
+ {
+  "id": "python/ml/torch-device-handling",
+  "lang": "python",
+  "topic": "ml",
+  "tier": 2,
+  "tags": [
+   "pytorch",
+   "device",
+   "cuda"
+  ],
+  "code": "import torch\nimport torch.nn as nn\n\ndevice = torch.device(\"cuda\" if torch.cuda.is_available() else \"cpu\")\nmodel = nn.Linear(4, 2).to(device)\nx = torch.randn(8, 4, device=device)\n\nout = model(x)\nprint(out.device.type == device.type, out.shape)\ncpu_copy = out.detach().cpu().numpy()\nprint(cpu_copy.shape, next(model.parameters()).device.type)",
+  "note": "Pick the device once and move both model and batch; a mixed-device op is a hard error."
+ },
+ {
+  "id": "python/ml/torch-eval-no-grad",
+  "lang": "python",
+  "topic": "ml",
+  "tier": 2,
+  "tags": [
+   "pytorch",
+   "eval",
+   "no-grad"
+  ],
+  "code": "import torch\nimport torch.nn as nn\n\ntorch.manual_seed(0)\nmodel = nn.Sequential(nn.Linear(4, 8), nn.Dropout(0.5), nn.Linear(8, 3))\nX = torch.randn(32, 4)\n\nmodel.train()\na, b = model(X), model(X)\nmodel.eval()\nwith torch.no_grad():\n    c, d = model(X), model(X)\nprint(torch.allclose(a, b), torch.allclose(c, d), c.requires_grad)\nprint(model(X).argmax(dim=1).shape)",
+  "note": "model.eval() changes dropout and batchnorm; no_grad only stops building the graph. Do both."
+ },
+ {
+  "id": "python/ml/torch-gradient-clipping",
+  "lang": "python",
+  "topic": "ml",
+  "tier": 3,
+  "tags": [
+   "pytorch",
+   "gradient-clipping",
+   "stability"
+  ],
+  "code": "import torch\nimport torch.nn as nn\n\ntorch.manual_seed(0)\nmodel = nn.Sequential(nn.Linear(4, 64), nn.Tanh(), nn.Linear(64, 1))\nopt = torch.optim.SGD(model.parameters(), lr=1.0)\n\nX, y = torch.randn(16, 4) * 100, torch.randn(16, 1) * 100\nloss = ((model(X) - y) ** 2).mean()\nloss.backward()\n\nbefore = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)\nafter = torch.sqrt(sum((p.grad ** 2).sum() for p in model.parameters()))\nopt.step()\nprint(before > 1.0, round(after.item(), 4) <= 1.0001)",
+  "note": "Clip after backward and before step; clipping by global norm rescales all gradients together."
+ },
+ {
+  "id": "python/ml/torch-layernorm-scratch",
+  "lang": "python",
+  "topic": "ml",
+  "tier": 3,
+  "tags": [
+   "pytorch",
+   "layernorm",
+   "normalization"
+  ],
+  "code": "import torch\nimport torch.nn as nn\n\nclass LayerNorm(nn.Module):\n    def __init__(self, dim, eps=1e-5):\n        super().__init__()\n        self.gamma = nn.Parameter(torch.ones(dim))\n        self.beta = nn.Parameter(torch.zeros(dim))\n        self.eps = eps\n\n    def forward(self, x):\n        mean = x.mean(dim=-1, keepdim=True)\n        var = x.var(dim=-1, keepdim=True, unbiased=False)\n        return self.gamma * (x - mean) / torch.sqrt(var + self.eps) + self.beta\n\nx = torch.randn(4, 6)\nmine, ref = LayerNorm(6)(x), nn.LayerNorm(6)(x)\nprint(torch.allclose(mine, ref, atol=1e-5), mine.mean(dim=-1).abs().max() < 1e-5)",
+  "note": "LayerNorm normalises across features per sample, so batch size never enters the statistics."
+ },
+ {
+  "id": "python/ml/torch-lr-scheduler",
+  "lang": "python",
+  "topic": "ml",
+  "tier": 3,
+  "tags": [
+   "pytorch",
+   "scheduler",
+   "warmup"
+  ],
+  "code": "import torch\nimport torch.nn as nn\n\nmodel = nn.Linear(4, 1)\nopt = torch.optim.SGD(model.parameters(), lr=0.1)\nwarmup = torch.optim.lr_scheduler.LinearLR(opt, start_factor=0.1, total_iters=5)\ncosine = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=15)\nsched = torch.optim.lr_scheduler.SequentialLR(opt, [warmup, cosine], milestones=[5])\n\nlrs = []\nfor epoch in range(20):\n    opt.zero_grad()\n    model(torch.randn(8, 4)).sum().backward()\n    opt.step()\n    lrs.append(round(opt.param_groups[0][\"lr\"], 5))\n    sched.step()\nprint(lrs[:3], lrs[5], lrs[-1] < lrs[5])",
+  "note": "Step the scheduler once per epoch, after the optimizer, or the first LR is silently skipped."
+ },
+ {
+  "id": "python/ml/torch-mixed-precision",
+  "lang": "python",
+  "topic": "ml",
+  "tier": 4,
+  "tags": [
+   "pytorch",
+   "amp",
+   "gradient-scaler"
+  ],
+  "code": "import torch\nimport torch.nn as nn\n\ndevice = \"cuda\" if torch.cuda.is_available() else \"cpu\"\nmodel = nn.Linear(8, 1).to(device)\nopt = torch.optim.SGD(model.parameters(), lr=1e-2)\nscaler = torch.amp.GradScaler(device, enabled=(device == \"cuda\"))\n\nX = torch.randn(32, 8, device=device)\ny = torch.randn(32, 1, device=device)\nfor _ in range(3):\n    opt.zero_grad(set_to_none=True)\n    with torch.amp.autocast(device, enabled=(device == \"cuda\")):\n        loss = ((model(X) - y) ** 2).mean()\n    scaler.scale(loss).backward()\n    scaler.unscale_(opt)\n    torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)\n    scaler.step(opt)\n    scaler.update()\nprint(round(loss.item(), 4) >= 0.0, scaler.is_enabled() == (device == \"cuda\"))",
+  "note": "The scaler multiplies the loss so fp16 gradients do not underflow, then unscales before step."
+ },
+ {
+  "id": "python/ml/torch-module-skeleton",
+  "lang": "python",
+  "topic": "ml",
+  "tier": 2,
+  "tags": [
+   "pytorch",
+   "nn-module"
+  ],
+  "code": "import torch\nimport torch.nn as nn\n\nclass MLP(nn.Module):\n    def __init__(self, d_in, hidden, d_out, p=0.1):\n        super().__init__()\n        self.net = nn.Sequential(\n            nn.Linear(d_in, hidden),\n            nn.GELU(),\n            nn.Dropout(p),\n            nn.Linear(hidden, d_out),\n        )\n\n    def forward(self, x):\n        return self.net(x)\n\nmodel = MLP(8, 32, 2)\nprint(sum(p.numel() for p in model.parameters()))\nprint(model(torch.randn(4, 8)).shape, model.training)",
+  "note": "Register submodules as attributes and parameters follow automatically into .parameters()."
+ },
+ {
+  "id": "python/ml/torch-multi-head-attention",
+  "lang": "python",
+  "topic": "ml",
+  "tier": 4,
+  "tags": [
+   "pytorch",
+   "attention",
+   "transformer"
+  ],
+  "code": "import torch\nimport torch.nn as nn\nimport torch.nn.functional as F\n\nclass MultiHeadAttention(nn.Module):\n    def __init__(self, d_model, heads):\n        super().__init__()\n        self.h, self.dk = heads, d_model // heads\n        self.qkv = nn.Linear(d_model, 3 * d_model, bias=False)\n        self.proj = nn.Linear(d_model, d_model)\n\n    def forward(self, x, mask=None):\n        B, T, C = x.shape\n        q, k, v = self.qkv(x).split(C, dim=2)\n        q, k, v = (t.view(B, T, self.h, self.dk).transpose(1, 2) for t in (q, k, v))\n        att = q @ k.transpose(-2, -1) / self.dk ** 0.5\n        if mask is not None:\n            att = att.masked_fill(mask, float(\"-inf\"))\n        out = F.softmax(att, dim=-1) @ v\n        return self.proj(out.transpose(1, 2).contiguous().view(B, T, C))\n\nx = torch.randn(2, 5, 32)\ncausal = torch.triu(torch.ones(5, 5, dtype=torch.bool), diagonal=1)\nprint(MultiHeadAttention(32, 4)(x, causal).shape)",
+  "note": "Scaling by sqrt(head_dim) keeps the logits from saturating softmax as the dimension grows."
+ },
+ {
+  "id": "python/ml/torch-positional-encoding",
+  "lang": "python",
+  "topic": "ml",
+  "tier": 3,
+  "tags": [
+   "pytorch",
+   "positional-encoding",
+   "buffer"
+  ],
+  "code": "import math\nimport torch\nimport torch.nn as nn\n\nclass SinusoidalPE(nn.Module):\n    def __init__(self, d_model, max_len=512):\n        super().__init__()\n        pe = torch.zeros(max_len, d_model)\n        pos = torch.arange(max_len).unsqueeze(1).float()\n        div = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))\n        pe[:, 0::2] = torch.sin(pos * div)\n        pe[:, 1::2] = torch.cos(pos * div)\n        self.register_buffer(\"pe\", pe.unsqueeze(0))\n\n    def forward(self, x):\n        return x + self.pe[:, :x.size(1)]\n\npe = SinusoidalPE(16)\nprint(pe(torch.zeros(1, 4, 16)).shape, len(list(pe.parameters())), pe.pe.requires_grad)",
+  "note": "register_buffer moves with .to(device) but is not a parameter, so no gradient is tracked."
+ },
+ {
+  "id": "python/ml/torch-training-loop",
+  "lang": "python",
+  "topic": "ml",
+  "tier": 2,
+  "tags": [
+   "pytorch",
+   "training-loop",
+   "zero-grad"
+  ],
+  "code": "import torch\nimport torch.nn as nn\n\ntorch.manual_seed(0)\nmodel = nn.Sequential(nn.Linear(4, 16), nn.ReLU(), nn.Linear(16, 1))\nopt = torch.optim.AdamW(model.parameters(), lr=1e-2, weight_decay=1e-4)\nloss_fn = nn.MSELoss()\n\nX = torch.randn(256, 4)\ny = (X @ torch.tensor([1.0, -2.0, 0.5, 3.0])).unsqueeze(1)\n\nfor epoch in range(50):\n    opt.zero_grad(set_to_none=True)\n    loss = loss_fn(model(X), y)\n    loss.backward()\n    opt.step()\nprint(round(loss.item(), 4))",
+  "note": "zero_grad, backward, step, in that order: gradients accumulate until you clear them."
+ },
+ {
+  "id": "python/ml/torch-transformer-block",
+  "lang": "python",
+  "topic": "ml",
+  "tier": 4,
+  "tags": [
+   "pytorch",
+   "transformer",
+   "residual"
+  ],
+  "code": "import torch\nimport torch.nn as nn\n\nclass Block(nn.Module):\n    def __init__(self, d_model, heads, mult=4, p=0.1):\n        super().__init__()\n        self.n1, self.n2 = nn.LayerNorm(d_model), nn.LayerNorm(d_model)\n        self.attn = nn.MultiheadAttention(d_model, heads, dropout=p, batch_first=True)\n        self.ff = nn.Sequential(\n            nn.Linear(d_model, mult * d_model),\n            nn.GELU(),\n            nn.Linear(mult * d_model, d_model),\n            nn.Dropout(p),\n        )\n\n    def forward(self, x, mask=None):\n        h = self.n1(x)\n        x = x + self.attn(h, h, h, attn_mask=mask, need_weights=False)[0]\n        return x + self.ff(self.n2(x))\n\nx = torch.randn(2, 7, 64)\nmask = torch.triu(torch.ones(7, 7, dtype=torch.bool), diagonal=1)\nprint(Block(64, 8)(x, mask).shape)",
+  "note": "Pre-norm residual blocks train deeper than post-norm because the skip path stays unscaled."
+ }
+]

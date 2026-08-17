@@ -1,0 +1,370 @@
+[
+ {
+  "id": "cpp/stl/algorithms-binary-search",
+  "lang": "cpp",
+  "topic": "stl",
+  "tier": 3,
+  "tags": [
+   "stl",
+   "lower-bound",
+   "equal-range"
+  ],
+  "code": "#include <algorithm>\n#include <vector>\n\nstd::size_t demo() {\n    std::vector<int> v{1, 2, 2, 2, 5, 8};\n\n    auto lo = std::lower_bound(v.begin(), v.end(), 2);\n    auto hi = std::upper_bound(v.begin(), v.end(), 2);\n    auto [first, last] = std::equal_range(v.begin(), v.end(), 2);\n    bool present = std::binary_search(v.begin(), v.end(), 5);\n\n    return static_cast<std::size_t>(std::distance(lo, hi))\n         + static_cast<std::size_t>(std::distance(first, last))\n         + static_cast<std::size_t>(present);\n}",
+  "note": "lower_bound gives the first not-less element; upper_bound the first greater. The gap is the run."
+ },
+ {
+  "id": "cpp/stl/algorithms-find-transform",
+  "lang": "cpp",
+  "topic": "stl",
+  "tier": 2,
+  "tags": [
+   "stl",
+   "find-if",
+   "transform"
+  ],
+  "code": "#include <algorithm>\n#include <string>\n#include <vector>\n\nstd::size_t demo() {\n    std::vector<int> v{1, 4, 9, 16};\n    auto it = std::find_if(v.begin(), v.end(), [](int x) { return x > 5; });\n    int found = it != v.end() ? *it : -1;\n\n    std::vector<std::string> tags(v.size());\n    std::transform(v.begin(), v.end(), tags.begin(),\n                   [](int x) { return std::to_string(x * 2); });\n    std::transform(v.begin(), v.end(), v.begin(), v.begin(), std::plus<>{});\n\n    return static_cast<std::size_t>(found) + tags.back().size() + v.back();\n}",
+  "note": "find_if returns end() on failure, so always compare against end() before dereferencing."
+ },
+ {
+  "id": "cpp/stl/algorithms-numeric",
+  "lang": "cpp",
+  "topic": "stl",
+  "tier": 2,
+  "tags": [
+   "stl",
+   "accumulate",
+   "inner-product"
+  ],
+  "code": "#include <numeric>\n#include <vector>\n\ndouble demo() {\n    std::vector<double> v{1.5, 2.5, 3.0};\n    std::vector<int> w{1, 2, 3};\n\n    double total = std::accumulate(v.begin(), v.end(), 0.0);\n    double product = std::accumulate(v.begin(), v.end(), 1.0, std::multiplies<>{});\n    int dot = std::inner_product(w.begin(), w.end(), w.begin(), 0);\n\n    std::vector<int> running(w.size());\n    std::partial_sum(w.begin(), w.end(), running.begin());\n    std::vector<int> diffs(w.size());\n    std::adjacent_difference(w.begin(), w.end(), diffs.begin());\n\n    return total + product + dot + running.back() + diffs.back();\n}",
+  "note": "accumulate's init argument sets the result type: pass 0.0, not 0, when summing doubles."
+ },
+ {
+  "id": "cpp/stl/algorithms-permutation-set-ops",
+  "lang": "cpp",
+  "topic": "stl",
+  "tier": 3,
+  "tags": [
+   "stl",
+   "next-permutation",
+   "set-intersection"
+  ],
+  "code": "#include <algorithm>\n#include <iterator>\n#include <vector>\n\nstd::size_t demo() {\n    std::vector<int> p{1, 2, 3};\n    int count = 0;\n    do { ++count; } while (std::next_permutation(p.begin(), p.end()));\n\n    std::vector<int> a{1, 2, 3, 4}, b{3, 4, 5}, out;\n    std::set_intersection(a.begin(), a.end(), b.begin(), b.end(), std::back_inserter(out));\n    std::vector<int> diff;\n    std::set_difference(a.begin(), a.end(), b.begin(), b.end(), std::back_inserter(diff));\n\n    return static_cast<std::size_t>(count) + out.size() + diff.size();\n}",
+  "note": "Both set algorithms require sorted input; on unsorted ranges they silently give nonsense."
+ },
+ {
+  "id": "cpp/stl/algorithms-predicates",
+  "lang": "cpp",
+  "topic": "stl",
+  "tier": 2,
+  "tags": [
+   "stl",
+   "all-of",
+   "count-if"
+  ],
+  "code": "#include <algorithm>\n#include <vector>\n\nint demo() {\n    std::vector<int> v{2, 4, 6, 8};\n    std::vector<int> empty;\n\n    bool all_even = std::all_of(v.begin(), v.end(), [](int x) { return x % 2 == 0; });\n    bool any_big = std::any_of(v.begin(), v.end(), [](int x) { return x > 7; });\n    bool none_neg = std::none_of(v.begin(), v.end(), [](int x) { return x < 0; });\n    auto n = std::count_if(v.begin(), v.end(), [](int x) { return x > 3; });\n\n    return all_even + any_big + none_neg + static_cast<int>(n)\n         + std::all_of(empty.begin(), empty.end(), [](int) { return false; });\n}",
+  "note": "all_of on an empty range is true and any_of is false; the vacuous cases catch people out."
+ },
+ {
+  "id": "cpp/stl/algorithms-sort",
+  "lang": "cpp",
+  "topic": "stl",
+  "tier": 2,
+  "tags": [
+   "stl",
+   "sort",
+   "stable-sort"
+  ],
+  "code": "#include <algorithm>\n#include <string>\n#include <vector>\n\nstruct Row {\n    int key{};\n    std::string tag;\n};\n\nstd::size_t demo() {\n    std::vector<int> v{5, 2, 9, 1, 5};\n    std::sort(v.begin(), v.end());\n    std::sort(v.begin(), v.end(), std::greater<>{});\n\n    std::vector<Row> rows{{2, \"b\"}, {1, \"a\"}, {2, \"a\"}};\n    std::stable_sort(rows.begin(), rows.end(),\n                     [](const Row& a, const Row& b) { return a.key < b.key; });\n    std::ranges::sort(v);\n    return v.size() + rows.front().tag.size();\n}",
+  "note": "sort is not stable and can reorder equal elements; stable_sort costs more and never does."
+ },
+ {
+  "id": "cpp/stl/algorithms-unique-rotate",
+  "lang": "cpp",
+  "topic": "stl",
+  "tier": 3,
+  "tags": [
+   "stl",
+   "unique",
+   "rotate",
+   "partition"
+  ],
+  "code": "#include <algorithm>\n#include <vector>\n\nstd::size_t demo() {\n    std::vector<int> v{3, 1, 3, 2, 1, 2};\n    std::sort(v.begin(), v.end());\n    v.erase(std::unique(v.begin(), v.end()), v.end());\n\n    std::rotate(v.begin(), v.begin() + 1, v.end());\n    auto split = std::partition(v.begin(), v.end(), [](int x) { return x % 2; });\n    std::vector<int> w{5, 3, 9, 1, 7};\n    std::nth_element(w.begin(), w.begin() + 2, w.end());\n\n    return v.size() + static_cast<std::size_t>(std::distance(v.begin(), split)) + w[2];\n}",
+  "note": "unique only collapses adjacent duplicates, so sort first unless adjacency is what you meant."
+ },
+ {
+  "id": "cpp/stl/charconv",
+  "lang": "cpp",
+  "topic": "stl",
+  "tier": 3,
+  "tags": [
+   "charconv",
+   "to-chars",
+   "from-chars"
+  ],
+  "code": "#include <array>\n#include <charconv>\n#include <string_view>\n#include <system_error>\n\nint demo() {\n    std::string_view text = \"1234rest\";\n    int value{};\n    auto [ptr, ec] = std::from_chars(text.data(), text.data() + text.size(), value);\n    bool ok = ec == std::errc{};\n    std::size_t consumed = static_cast<std::size_t>(ptr - text.data());\n\n    std::array<char, 16> buf{};\n    auto res = std::to_chars(buf.data(), buf.data() + buf.size(), 255, 16);\n    std::string_view hex(buf.data(), static_cast<std::size_t>(res.ptr - buf.data()));\n\n    return value + static_cast<int>(ok) + static_cast<int>(consumed) + static_cast<int>(hex.size());\n}",
+  "note": "from_chars never allocates, never throws and never looks at the locale, unlike stoi."
+ },
+ {
+  "id": "cpp/stl/chrono-clocks",
+  "lang": "cpp",
+  "topic": "stl",
+  "tier": 3,
+  "tags": [
+   "chrono",
+   "steady-clock",
+   "time-point"
+  ],
+  "code": "#include <chrono>\n#include <thread>\n\nlong long demo() {\n    using namespace std::chrono;\n\n    auto start = steady_clock::now();\n    std::this_thread::sleep_for(1ms);\n    auto elapsed = steady_clock::now() - start;\n\n    auto ms = duration_cast<milliseconds>(elapsed).count();\n    auto deadline = steady_clock::now() + 50ms;\n    bool before = steady_clock::now() < deadline;\n\n    auto wall = system_clock::now();\n    auto epoch_secs = duration_cast<seconds>(wall.time_since_epoch()).count();\n    return ms + static_cast<long long>(before) + (epoch_secs > 0);\n}",
+  "note": "Use steady_clock for elapsed time; system_clock can jump backwards when the wall clock is adjusted."
+ },
+ {
+  "id": "cpp/stl/chrono-durations",
+  "lang": "cpp",
+  "topic": "stl",
+  "tier": 2,
+  "tags": [
+   "chrono",
+   "duration",
+   "literals"
+  ],
+  "code": "#include <chrono>\n\nlong long demo() {\n    using namespace std::chrono;\n\n    auto budget = 250ms;\n    auto slice = budget / 5;\n    seconds whole = duration_cast<seconds>(1500ms);\n    auto micros = duration_cast<microseconds>(slice);\n    auto total = budget + 1s;\n\n    double ratio = duration<double>(budget) / duration<double>(1s);\n    return micros.count() + whole.count() + total.count() + static_cast<long long>(ratio * 100);\n}",
+  "note": "Durations convert implicitly only when no precision is lost; narrowing needs duration_cast."
+ },
+ {
+  "id": "cpp/stl/containers-adaptors",
+  "lang": "cpp",
+  "topic": "stl",
+  "tier": 2,
+  "tags": [
+   "stl",
+   "priority-queue",
+   "stack",
+   "queue"
+  ],
+  "code": "#include <functional>\n#include <queue>\n#include <stack>\n#include <vector>\n\nint demo() {\n    std::priority_queue<int> max_heap;\n    std::priority_queue<int, std::vector<int>, std::greater<>> min_heap;\n    for (int x : {5, 1, 8, 3}) {\n        max_heap.push(x);\n        min_heap.push(x);\n    }\n\n    std::stack<int> st;\n    st.push(1);\n    st.push(2);\n\n    std::queue<int> q;\n    q.push(10);\n    q.push(20);\n\n    return max_heap.top() + min_heap.top() + st.top() + q.front() + q.back();\n}",
+  "note": "priority_queue is a max-heap by default; pass std::greater to invert it."
+ },
+ {
+  "id": "cpp/stl/containers-associative",
+  "lang": "cpp",
+  "topic": "stl",
+  "tier": 2,
+  "tags": [
+   "stl",
+   "map",
+   "unordered-map"
+  ],
+  "code": "#include <map>\n#include <string>\n#include <unordered_map>\n\nint demo() {\n    std::map<std::string, int> ordered{{\"b\", 2}, {\"a\", 1}};\n    ordered[\"c\"] = 3;\n    ordered.insert_or_assign(\"a\", 10);\n    auto [it, inserted] = ordered.try_emplace(\"d\", 4);\n\n    std::unordered_map<std::string, int> fast;\n    fast.reserve(64);\n    fast.emplace(\"x\", 1);\n    fast[\"y\"] += 5;\n\n    int total = 0;\n    for (const auto& [k, v] : ordered) total += v;\n    return total + fast.at(\"y\") + static_cast<int>(inserted) + static_cast<int>(it->second);\n}",
+  "note": "map keeps keys ordered in O(log n); unordered_map is O(1) average with no order at all."
+ },
+ {
+  "id": "cpp/stl/containers-sequence",
+  "lang": "cpp",
+  "topic": "stl",
+  "tier": 2,
+  "tags": [
+   "stl",
+   "vector",
+   "deque",
+   "array"
+  ],
+  "code": "#include <array>\n#include <deque>\n#include <list>\n#include <vector>\n\nstd::size_t demo() {\n    std::vector<int> v{1, 2, 3};\n    v.reserve(16);\n    v.insert(v.begin() + 1, 99);\n    v.emplace_back(4);\n\n    std::deque<int> d{1, 2};\n    d.push_front(0);\n    d.push_back(3);\n\n    std::list<int> l{5, 1, 4};\n    l.sort();\n    l.splice(l.end(), l, l.begin());\n\n    std::array<int, 3> a{7, 8, 9};\n    return v.size() + d.size() + l.size() + a.size() + v.capacity();\n}",
+  "note": "vector reallocates and invalidates everything; deque only invalidates iterators, not references."
+ },
+ {
+  "id": "cpp/stl/containers-set-multiset",
+  "lang": "cpp",
+  "topic": "stl",
+  "tier": 2,
+  "tags": [
+   "stl",
+   "set",
+   "multiset",
+   "equal-range"
+  ],
+  "code": "#include <set>\n\nint demo() {\n    std::set<int> s{5, 1, 3};\n    auto [it, inserted] = s.insert(3);\n\n    std::multiset<int> ms{1, 2, 2, 2, 5};\n    auto [lo, hi] = ms.equal_range(2);\n\n    int span = 0;\n    for (auto cur = lo; cur != hi; ++cur) span += *cur;\n\n    return static_cast<int>(s.size()) + static_cast<int>(inserted)\n         + static_cast<int>(ms.count(2)) + span + *s.begin();\n}",
+  "note": "multiset keeps duplicates; equal_range hands you the whole run of equal keys at once."
+ },
+ {
+  "id": "cpp/stl/custom-comparator",
+  "lang": "cpp",
+  "topic": "stl",
+  "tier": 3,
+  "tags": [
+   "stl",
+   "comparator",
+   "strict-weak-ordering"
+  ],
+  "code": "#include <queue>\n#include <set>\n#include <string>\n#include <vector>\n\nstruct Task {\n    int priority{};\n    std::string name;\n};\n\nstruct ByPriority {\n    bool operator()(const Task& a, const Task& b) const {\n        return a.priority == b.priority ? a.name < b.name : a.priority > b.priority;\n    }\n};\n\nstd::size_t demo() {\n    std::set<Task, ByPriority> ordered{{2, \"b\"}, {1, \"a\"}, {2, \"a\"}};\n    auto cmp = [](const Task& a, const Task& b) { return a.priority < b.priority; };\n    std::priority_queue<Task, std::vector<Task>, decltype(cmp)> pq(cmp);\n    pq.push({3, \"x\"});\n    pq.push({9, \"y\"});\n    return ordered.size() + static_cast<std::size_t>(pq.top().priority);\n}",
+  "note": "A comparator must be a strict weak ordering: comp(a, a) has to be false or the sort corrupts memory."
+ },
+ {
+  "id": "cpp/stl/custom-hash",
+  "lang": "cpp",
+  "topic": "stl",
+  "tier": 3,
+  "tags": [
+   "stl",
+   "hash",
+   "unordered-map"
+  ],
+  "code": "#include <cstddef>\n#include <functional>\n#include <string>\n#include <unordered_map>\n\nstruct Key {\n    int id{};\n    std::string tag;\n    bool operator==(const Key&) const = default;\n};\n\nstruct KeyHash {\n    std::size_t operator()(const Key& k) const noexcept {\n        std::size_t h = std::hash<int>{}(k.id);\n        h ^= std::hash<std::string>{}(k.tag) + 0x9e3779b9 + (h << 6) + (h >> 2);\n        return h;\n    }\n};\n\nstd::size_t demo() {\n    std::unordered_map<Key, int, KeyHash> m;\n    m[{1, \"a\"}] = 10;\n    m[{2, \"b\"}] += 5;\n    return m.size() + static_cast<std::size_t>(m.at({1, \"a\"}));\n}",
+  "note": "Combine field hashes with a shift and xor; adding them collides on any permutation."
+ },
+ {
+  "id": "cpp/stl/erase-remove-idiom",
+  "lang": "cpp",
+  "topic": "stl",
+  "tier": 3,
+  "tags": [
+   "stl",
+   "erase-remove",
+   "erase-if"
+  ],
+  "code": "#include <algorithm>\n#include <string>\n#include <vector>\n\nstd::size_t demo() {\n    std::vector<int> v{1, 2, 3, 4, 5, 6};\n    v.erase(std::remove_if(v.begin(), v.end(), [](int x) { return x % 2 == 0; }), v.end());\n\n    std::vector<int> w{1, 2, 3, 4, 5, 6};\n    std::erase_if(w, [](int x) { return x % 2 == 0; });\n    std::erase(w, 3);\n\n    std::string s = \"a-b-c\";\n    std::erase(s, '-');\n    return v.size() + w.size() + s.size();\n}",
+  "note": "remove only shuffles survivors forward and returns the new logical end; erase does the shrinking."
+ },
+ {
+  "id": "cpp/stl/iterator-categories",
+  "lang": "cpp",
+  "topic": "stl",
+  "tier": 4,
+  "tags": [
+   "stl",
+   "iterator-category",
+   "tag-dispatch"
+  ],
+  "code": "#include <forward_list>\n#include <iterator>\n#include <vector>\n\ntemplate <typename It>\nstd::size_t count_steps(It first, It last) {\n    if constexpr (std::random_access_iterator<It>) {\n        return static_cast<std::size_t>(last - first);\n    } else {\n        std::size_t n = 0;\n        for (; first != last; ++first) ++n;\n        return n;\n    }\n}\n\nstd::size_t demo() {\n    std::vector<int> v{1, 2, 3, 4};\n    std::forward_list<int> fl{1, 2, 3};\n    static_assert(std::random_access_iterator<std::vector<int>::iterator>);\n    return count_steps(v.begin(), v.end()) + count_steps(fl.begin(), fl.end());\n}",
+  "note": "Random access gives O(1) distance; a forward iterator has to walk, so the tag picks the algorithm."
+ },
+ {
+  "id": "cpp/stl/iterators-basics",
+  "lang": "cpp",
+  "topic": "stl",
+  "tier": 2,
+  "tags": [
+   "stl",
+   "iterator",
+   "back-inserter"
+  ],
+  "code": "#include <algorithm>\n#include <iterator>\n#include <vector>\n\nstd::size_t demo() {\n    std::vector<int> src{1, 2, 3, 4, 5};\n    std::vector<int> dst;\n    std::copy_if(src.begin(), src.end(), std::back_inserter(dst),\n                 [](int x) { return x % 2; });\n\n    auto mid = src.begin() + std::distance(src.begin(), src.end()) / 2;\n    std::advance(mid, 1);\n\n    std::vector<int> reversed(src.rbegin(), src.rend());\n    return dst.size() + reversed.front() + static_cast<std::size_t>(*mid);\n}",
+  "note": "back_inserter turns an output iterator into push_back, so the destination grows as needed."
+ },
+ {
+  "id": "cpp/stl/optional",
+  "lang": "cpp",
+  "topic": "stl",
+  "tier": 2,
+  "tags": [
+   "optional",
+   "value-or",
+   "nullopt"
+  ],
+  "code": "#include <optional>\n#include <string>\n\nstd::optional<int> to_int(const std::string& s) {\n    if (s.empty() || s.find_first_not_of(\"0123456789\") != std::string::npos) {\n        return std::nullopt;\n    }\n    return std::stoi(s);\n}\n\nint demo() {\n    auto a = to_int(\"42\");\n    auto b = to_int(\"x\");\n    int total = a.value_or(0) + b.value_or(-1);\n    if (a) total += *a;\n    if (auto c = to_int(\"7\"); c.has_value()) total += c.value();\n    return total + static_cast<int>(b == std::nullopt);\n}",
+  "note": "value() throws on empty; value_or never does. Pick deliberately, do not mix them by accident."
+ },
+ {
+  "id": "cpp/stl/ranges-algorithms",
+  "lang": "cpp",
+  "topic": "stl",
+  "tier": 3,
+  "tags": [
+   "ranges",
+   "projection",
+   "algorithms"
+  ],
+  "code": "#include <algorithm>\n#include <ranges>\n#include <string>\n#include <vector>\n\nstruct Person {\n    std::string name;\n    int age{};\n};\n\nstd::size_t demo() {\n    std::vector<Person> people{{\"carol\", 41}, {\"alice\", 30}, {\"bob\", 35}};\n\n    std::ranges::sort(people, {}, &Person::age);\n    auto it = std::ranges::find_if(people, [](int a) { return a > 32; }, &Person::age);\n    auto n = std::ranges::count_if(people, [](const Person& p) { return p.age > 31; });\n    auto [lo, hi] = std::ranges::minmax(people | std::views::transform(&Person::age));\n\n    return people.front().name.size() + static_cast<std::size_t>(n)\n         + static_cast<std::size_t>(it != people.end()) + static_cast<std::size_t>(hi - lo);\n}",
+  "note": "The projection argument removes the need for a comparator lambda in most sorts."
+ },
+ {
+  "id": "cpp/stl/ranges-join-split",
+  "lang": "cpp",
+  "topic": "stl",
+  "tier": 4,
+  "tags": [
+   "ranges",
+   "join",
+   "elements"
+  ],
+  "code": "#include <ranges>\n#include <string>\n#include <vector>\n\nstd::size_t demo() {\n    std::vector<std::vector<int>> nested{{1, 2}, {3}, {4, 5, 6}};\n    std::size_t total = 0;\n    for (int x : nested | std::views::join) total += static_cast<std::size_t>(x);\n\n    std::vector<std::pair<std::string, int>> pairs{{\"a\", 1}, {\"b\", 2}};\n    for (const auto& key : pairs | std::views::keys) total += key.size();\n    for (int v : pairs | std::views::values) total += static_cast<std::size_t>(v);\n\n    for (int i : std::views::iota(0, static_cast<int>(nested.size()))) {\n        total += static_cast<std::size_t>(i) + nested[static_cast<std::size_t>(i)].size();\n    }\n    return total;\n}",
+  "note": "views::join flattens one level of nesting lazily, without building the intermediate container."
+ },
+ {
+  "id": "cpp/stl/ranges-views",
+  "lang": "cpp",
+  "topic": "stl",
+  "tier": 3,
+  "tags": [
+   "ranges",
+   "views",
+   "lazy"
+  ],
+  "code": "#include <ranges>\n#include <vector>\n\nint demo() {\n    std::vector<int> v{1, 2, 3, 4, 5, 6, 7, 8};\n\n    auto pipeline = v\n        | std::views::filter([](int x) { return x % 2 == 0; })\n        | std::views::transform([](int x) { return x * x; })\n        | std::views::drop(1)\n        | std::views::take(2);\n\n    int total = 0;\n    for (int x : pipeline) total += x;\n\n    auto reversed = v | std::views::reverse | std::views::take(3);\n    for (int x : reversed) total += x;\n    return total;\n}",
+  "note": "Views are lazy and composable: nothing is computed until you iterate the final range."
+ },
+ {
+  "id": "cpp/stl/span",
+  "lang": "cpp",
+  "topic": "stl",
+  "tier": 3,
+  "tags": [
+   "span",
+   "non-owning",
+   "array"
+  ],
+  "code": "#include <array>\n#include <cstddef>\n#include <span>\n#include <vector>\n\nint total(std::span<const int> values) {\n    int sum = 0;\n    for (int v : values) sum += v;\n    return sum;\n}\n\nint demo() {\n    int raw[4]{1, 2, 3, 4};\n    std::vector<int> vec{5, 6};\n    std::array<int, 3> arr{7, 8, 9};\n\n    auto head = std::span{raw}.first(2);\n    auto tail = std::span{arr}.subspan(1);\n    return total(raw) + total(vec) + total(arr) + total(head) + total(tail);\n}",
+  "note": "span is a pointer plus a length, so one function signature accepts array, vector and C buffer."
+ },
+ {
+  "id": "cpp/stl/string-vs-string-view",
+  "lang": "cpp",
+  "topic": "stl",
+  "tier": 2,
+  "tags": [
+   "string",
+   "string-view",
+   "lifetime"
+  ],
+  "code": "#include <string>\n#include <string_view>\n\nstd::size_t count_words(std::string_view text) {\n    std::size_t words = 0, pos = 0;\n    while ((pos = text.find_first_not_of(' ', pos)) != std::string_view::npos) {\n        ++words;\n        pos = text.find(' ', pos);\n        if (pos == std::string_view::npos) break;\n    }\n    return words;\n}\n\nstd::size_t demo() {\n    std::string owned = \"the quick brown fox\";\n    std::string_view view = owned;\n    auto prefix = view.substr(0, 3);\n    return count_words(owned) + count_words(\"a b\") + prefix.size() + owned.starts_with(\"the\");\n}",
+  "note": "A string_view does not own anything, so never return one that points at a local string."
+ },
+ {
+  "id": "cpp/stl/stringstream",
+  "lang": "cpp",
+  "topic": "stl",
+  "tier": 2,
+  "tags": [
+   "stringstream",
+   "parsing",
+   "formatting"
+  ],
+  "code": "#include <sstream>\n#include <string>\n#include <vector>\n\nstd::vector<int> parse_csv(const std::string& line) {\n    std::vector<int> out;\n    std::istringstream in(line);\n    std::string cell;\n    while (std::getline(in, cell, ',')) {\n        std::istringstream conv(cell);\n        int value{};\n        if (conv >> value) out.push_back(value);\n    }\n    return out;\n}\n\nstd::size_t demo() {\n    std::ostringstream os;\n    os << \"n=\" << 42 << \" f=\" << 1.5;\n    return parse_csv(\"1,2,x,4\").size() + os.str().size();\n}",
+  "note": "Streaming into a variable sets failbit on bad input, so test the stream before trusting the value."
+ },
+ {
+  "id": "cpp/stl/tuple-apply-tie",
+  "lang": "cpp",
+  "topic": "stl",
+  "tier": 3,
+  "tags": [
+   "tuple",
+   "apply",
+   "tie"
+  ],
+  "code": "#include <string>\n#include <tuple>\n\nstruct Record {\n    int id{};\n    std::string name;\n    double score{};\n\n    bool operator<(const Record& o) const {\n        return std::tie(id, name, score) < std::tie(o.id, o.name, o.score);\n    }\n};\n\nint sum3(int a, int b, int c) { return a + b + c; }\n\nstd::size_t demo() {\n    auto t = std::make_tuple(1, 2, 3);\n    int applied = std::apply(sum3, t);\n\n    int x{}, y{}, z{};\n    std::tie(x, y, z) = t;\n\n    auto joined = std::tuple_cat(t, std::make_tuple(std::string(\"tail\")));\n    Record a{1, \"a\", 1.0}, b{1, \"b\", 0.0};\n    return static_cast<std::size_t>(applied + x + y + z)\n         + std::tuple_size_v<decltype(joined)> + static_cast<std::size_t>(a < b);\n}",
+  "note": "tie builds a tuple of references, which is why it can both destructure and compare in one line."
+ },
+ {
+  "id": "cpp/stl/variant-visit",
+  "lang": "cpp",
+  "topic": "stl",
+  "tier": 3,
+  "tags": [
+   "variant",
+   "visit",
+   "overloaded"
+  ],
+  "code": "#include <string>\n#include <variant>\n\ntemplate <typename... Fs>\nstruct overloaded : Fs... {\n    using Fs::operator()...;\n};\n\nusing Value = std::variant<int, double, std::string>;\n\nstd::size_t describe(const Value& v) {\n    return std::visit(overloaded{\n        [](int i) { return static_cast<std::size_t>(i); },\n        [](double d) { return static_cast<std::size_t>(d * 2); },\n        [](const std::string& s) { return s.size(); },\n    }, v);\n}\n\nstd::size_t demo() {\n    Value a = 21, b = 1.5, c = std::string(\"hello\");\n    return describe(a) + describe(b) + describe(c)\n         + a.index() + static_cast<std::size_t>(std::holds_alternative<int>(a));\n}",
+  "note": "An overload set built from lambdas is how you write a type switch that the compiler checks."
+ }
+]

@@ -1,0 +1,18 @@
+[
+ "shards/cpp-concurrency.json",
+ "shards/cpp-core-syntax.json",
+ "shards/cpp-cuda.json",
+ "shards/cpp-dsa.json",
+ "shards/cpp-low-latency.json",
+ "shards/cpp-nways.json",
+ "shards/cpp-stl.json",
+ "shards/cpp-templates-meta.json",
+ "shards/python-concurrency.json",
+ "shards/python-core-syntax.json",
+ "shards/python-data.json",
+ "shards/python-dsa.json",
+ "shards/python-functional-meta.json",
+ "shards/python-ml.json",
+ "shards/python-numerical.json",
+ "shards/python-nways.json"
+]

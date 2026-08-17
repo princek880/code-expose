@@ -1,0 +1,171 @@
+[
+ {
+  "id": "python/nways/dedup-set-vs-ordered",
+  "lang": "python",
+  "topic": "nways",
+  "tier": 1,
+  "tags": [
+   "nways",
+   "deduplicate",
+   "set"
+  ],
+  "code": "xs = [3, 1, 2, 3, 1, 4, 2]\nunordered = set(xs)\nordered = list(dict.fromkeys(xs))\nsorted_unique = sorted(set(xs))\nprint(sorted(unordered) == sorted(list(unordered)), ordered, sorted_unique)",
+  "note": "set(xs) drops order; dict.fromkeys keeps first-seen order because dicts remember insertion order."
+ },
+ {
+  "id": "python/nways/dedup-sort-and-scan",
+  "lang": "python",
+  "topic": "nways",
+  "tier": 2,
+  "tags": [
+   "nways",
+   "deduplicate",
+   "sort"
+  ],
+  "code": "def dedup_sorted(xs):\n    xs = sorted(xs)\n    out = xs[:1]\n    for x in xs[1:]:\n        if x != out[-1]:\n            out.append(x)\n    return out\n\nprint(dedup_sorted([5, 1, 5, 3, 1, 2]))",
+  "note": "Sorting first turns duplicate detection into an adjacent-pair check, no hashing required at all."
+ },
+ {
+  "id": "python/nways/fibonacci-bottom-up",
+  "lang": "python",
+  "topic": "nways",
+  "tier": 1,
+  "tags": [
+   "nways",
+   "fibonacci",
+   "iterative"
+  ],
+  "code": "def fib_iter(n):\n    a, b = 0, 1\n    for _ in range(n):\n        a, b = b, a + b\n    return a\n\nprint([fib_iter(n) for n in range(10)])",
+  "note": "Two rolling variables replace the whole call stack, and the memory drops from O(n) to O(1)."
+ },
+ {
+  "id": "python/nways/fibonacci-fast-doubling",
+  "lang": "python",
+  "topic": "nways",
+  "tier": 4,
+  "tags": [
+   "nways",
+   "fibonacci",
+   "fast-doubling"
+  ],
+  "code": "def fib_fast_doubling(n):\n    def go(k):\n        if k == 0:\n            return (0, 1)\n        a, b = go(k >> 1)\n        c = a * (2 * b - a)\n        d = a * a + b * b\n        return (d, c + d) if k & 1 else (c, d)\n    return go(n)[0]\n\nprint([fib_fast_doubling(n) for n in range(10)], fib_fast_doubling(100))",
+  "note": "F(2k) and F(2k+1) both come from F(k) and F(k+1), which halves the problem every step without a matrix."
+ },
+ {
+  "id": "python/nways/fibonacci-matrix-power",
+  "lang": "python",
+  "topic": "nways",
+  "tier": 4,
+  "tags": [
+   "nways",
+   "fibonacci",
+   "matrix-exponentiation"
+  ],
+  "code": "def mat_mult(a, b):\n    return [\n        [a[0][0] * b[0][0] + a[0][1] * b[1][0], a[0][0] * b[0][1] + a[0][1] * b[1][1]],\n        [a[1][0] * b[0][0] + a[1][1] * b[1][0], a[1][0] * b[0][1] + a[1][1] * b[1][1]],\n    ]\n\ndef fib_matrix(n):\n    result = [[1, 0], [0, 1]]\n    base = [[1, 1], [1, 0]]\n    while n:\n        if n & 1:\n            result = mat_mult(result, base)\n        base = mat_mult(base, base)\n        n >>= 1\n    return result[0][1]\n\nprint([fib_matrix(n) for n in range(10)], fib_matrix(50))",
+  "note": "[[1,1],[1,0]]^n encodes two Fibonacci numbers at once, computable in O(log n) by repeated squaring."
+ },
+ {
+  "id": "python/nways/fibonacci-naive-vs-memo",
+  "lang": "python",
+  "topic": "nways",
+  "tier": 2,
+  "tags": [
+   "nways",
+   "fibonacci",
+   "recursion"
+  ],
+  "code": "def fib_naive(n):\n    if n < 2:\n        return n\n    return fib_naive(n - 1) + fib_naive(n - 2)\n\nfrom functools import lru_cache\n\n@lru_cache(maxsize=None)\ndef fib_memo(n):\n    if n < 2:\n        return n\n    return fib_memo(n - 1) + fib_memo(n - 2)\n\nprint(fib_naive(15), fib_memo(80))",
+  "note": "Naive recursion is O(2^n); memoizing the same code drops it to O(n) with one decorator."
+ },
+ {
+  "id": "python/nways/flatten-recursive-vs-generator",
+  "lang": "python",
+  "topic": "nways",
+  "tier": 2,
+  "tags": [
+   "nways",
+   "flatten",
+   "recursion"
+  ],
+  "code": "def flatten_eager(xs):\n    out = []\n    for x in xs:\n        if isinstance(x, list):\n            out.extend(flatten_eager(x))\n        else:\n            out.append(x)\n    return out\n\ndef flatten_lazy(xs):\n    for x in xs:\n        if isinstance(x, list):\n            yield from flatten_lazy(x)\n        else:\n            yield x\n\nnested = [1, [2, [3, 4], 5], [[6]]]\nprint(flatten_eager(nested), list(flatten_lazy(nested)))",
+  "note": "The recursive version builds a list eagerly; the generator version streams and never holds it all at once."
+ },
+ {
+  "id": "python/nways/memoize-manual-vs-decorator",
+  "lang": "python",
+  "topic": "nways",
+  "tier": 2,
+  "tags": [
+   "nways",
+   "memoize",
+   "cache"
+  ],
+  "code": "calls = {\"manual\": 0, \"cached\": 0}\n_cache = {}\n\ndef manual_square(n):\n    if n not in _cache:\n        calls[\"manual\"] += 1\n        _cache[n] = n * n\n    return _cache[n]\n\nfrom functools import lru_cache\n\n@lru_cache(maxsize=None)\ndef cached_square(n):\n    calls[\"cached\"] += 1\n    return n * n\n\nmanual_square(5); manual_square(5)\ncached_square(5); cached_square(5)\nprint(calls)",
+  "note": "A hand-rolled dict cache and @lru_cache do the same job; the decorator just spares you the boilerplate."
+ },
+ {
+  "id": "python/nways/random-lcg-vs-stdlib",
+  "lang": "python",
+  "topic": "nways",
+  "tier": 3,
+  "tags": [
+   "nways",
+   "random",
+   "lcg"
+  ],
+  "code": "def lcg(seed, a=1103515245, c=12345, m=2 ** 31):\n    state = seed\n    while True:\n        state = (a * state + c) % m\n        yield state / m\n\nimport random\n\ngen = lcg(42)\nhomemade = [next(gen) for _ in range(3)]\nstdlib = random.Random(42).random()\nprint(all(0 <= x < 1 for x in homemade), round(stdlib, 4))",
+  "note": "A linear congruential generator is one multiply-add-mod; it is fast, deterministic, and not secure."
+ },
+ {
+  "id": "python/nways/random-secrets-secure",
+  "lang": "python",
+  "topic": "nways",
+  "tier": 2,
+  "tags": [
+   "nways",
+   "random",
+   "secrets"
+  ],
+  "code": "import random\nimport secrets\n\nfast_but_predictable = random.randint(1, 100)\nsecure_token = secrets.token_hex(8)\nsecure_choice = secrets.choice([\"a\", \"b\", \"c\"])\nprint(1 <= fast_but_predictable <= 100, len(secure_token), secure_choice in \"abc\")",
+  "note": "random is a Mersenne Twister and predictable from its output; secrets is the CSPRNG for anything sensitive."
+ },
+ {
+  "id": "python/nways/sum-loop-vs-builtin",
+  "lang": "python",
+  "topic": "nways",
+  "tier": 1,
+  "tags": [
+   "nways",
+   "sum",
+   "reduce"
+  ],
+  "code": "from functools import reduce\n\nxs = [1, 2, 3, 4, 5]\n\nmanual = 0\nfor x in xs:\n    manual += x\n\nbuiltin = sum(xs)\nreduced = reduce(lambda a, b: a + b, xs)\nprint(manual, builtin, reduced, manual == builtin == reduced)",
+  "note": "sum() is a tight C loop; a hand-written loop and reduce do the identical work at Python speed."
+ },
+ {
+  "id": "python/nways/swap-tuple-vs-temp",
+  "lang": "python",
+  "topic": "nways",
+  "tier": 1,
+  "tags": [
+   "nways",
+   "swap",
+   "tuple-unpack"
+  ],
+  "code": "a, b = 1, 2\na, b = b, a\n\nx, y = 3, 4\ntemp = x\nx = y\ny = temp\n\np, q = 5, 6\np ^= q\nq ^= p\np ^= q\n\nprint(a, b, x, y, p, q)",
+  "note": "Tuple-unpacking swap builds a temporary tuple under the hood; the manual version makes that step explicit."
+ },
+ {
+  "id": "python/nways/transpose-zip-vs-loop",
+  "lang": "python",
+  "topic": "nways",
+  "tier": 1,
+  "tags": [
+   "nways",
+   "transpose",
+   "zip"
+  ],
+  "code": "matrix = [[1, 2, 3], [4, 5, 6]]\n\nzipped = [list(row) for row in zip(*matrix)]\n\nmanual = [[0] * len(matrix) for _ in range(len(matrix[0]))]\nfor r in range(len(matrix)):\n    for c in range(len(matrix[0])):\n        manual[c][r] = matrix[r][c]\n\nprint(zipped == manual, zipped)",
+  "note": "zip(*matrix) transposes in one call by pairing up the i-th element of every row."
+ }
+]
