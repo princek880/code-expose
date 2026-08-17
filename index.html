@@ -20,6 +20,25 @@
     --lh:1.7;
   }
 
+  /* Themes are the same seven tokens re-bound. Adding one is a five-line block
+     here plus its name in the THEMES array. --size is set inline on :root. */
+  :root[data-theme="light"]{
+    --bg:#faf9f7; --fg:#16181a; --muted:#a2a7ad; --dim:#e4e2de;
+    --err:#c62828; --err-bg:#f7d4cf; --caret:#1f6feb;
+  }
+  :root[data-theme="amber"]{
+    --bg:#161310; --fg:#f2d9a8; --muted:#736450; --dim:#2c2620;
+    --err:#e0654f; --err-bg:#452421; --caret:#ffb454;
+  }
+  :root[data-theme="nord"]{
+    --bg:#2e3440; --fg:#eceff4; --muted:#68758c; --dim:#3b4252;
+    --err:#bf616a; --err-bg:#4c3438; --caret:#88c0d0;
+  }
+  :root[data-theme="contrast"]{
+    --bg:#000000; --fg:#ffffff; --muted:#7a7a7a; --dim:#2b2b2b;
+    --err:#ff5555; --err-bg:#5c0000; --caret:#00e5ff;
+  }
+
   *{box-sizing:border-box}
   html{background:var(--bg)}
   body{
@@ -68,6 +87,17 @@
   #results .note{color:var(--muted);font-size:.8em;margin-top:1.6em;line-height:1.5}
   #results .hint{color:var(--dim);font-size:.66em;letter-spacing:.08em;margin-top:3.4em;user-select:none;white-space:pre}
 
+  /* ---- switcher: summoned with tab+s, never on screen otherwise ---- */
+  #switch{font-size:.8em;line-height:2.1}
+  #switch .row{display:flex;gap:1.5ch;color:var(--muted)}
+  #switch .row.on{color:var(--fg)}
+  #switch .row.on .lbl::before{content:"›";position:absolute;margin-left:-1.6ch}
+  #switch .lbl{width:9ch;position:relative}
+  #switch .val{color:var(--fg)}
+  #switch .row:not(.on) .val{color:var(--muted)}
+  #switch .count{color:var(--muted);font-size:.85em;margin-top:1.8em}
+  #switch .hint{color:var(--dim);font-size:.8em;letter-spacing:.06em;margin-top:2.4em;white-space:pre}
+
   @media (prefers-reduced-motion:reduce){
     #caret{transition:none;animation:none}
   }
@@ -86,6 +116,14 @@
     <div class="who"><b id="rId"></b><br><span id="rTt"></span></div>
     <div class="note" id="rNote"></div>
     <div class="hint" id="rHint"></div>
+  </section>
+
+  <section id="switch" hidden>
+    <div class="row" data-key="lang"><span class="lbl">language</span><span class="val" id="swLang"></span></div>
+    <div class="row" data-key="topic"><span class="lbl">topic</span><span class="val" id="swTopic"></span></div>
+    <div class="row" data-key="tier"><span class="lbl">tier</span><span class="val" id="swTier"></span></div>
+    <div class="count" id="swCount"></div>
+    <div class="hint">↑↓ row    ←→ value    enter apply    esc cancel</div>
   </section>
 </div>
 
@@ -235,7 +273,8 @@ var rHint  = document.getElementById('rHint');
 function hintFor(missed){
   return 'enter → next     esc → retry'
     + (missed ? '     p → practice ' + missed + (missed > 1 ? ' missed lines' : ' missed line') : '')
-    + '     e → export history';
+    + '     e → export history'
+    + '\ntab+s → switch     ↑↓ size     ←→ theme';
 }
 var curHint = hintFor(0);
 function setHint(h){ curHint = h; rHint.textContent = h; }
@@ -273,17 +312,60 @@ function clean(s){
 var params = new URLSearchParams(location.search);
 var full = EMBEDDED.filter(valid).map(clean);
 
+/* ---------- preferences ---------- *
+ * Precedence: URL param > stored pref > default. URL params only seed the
+ * initial filter; switching in-app afterwards updates and persists it, so the
+ * next visit opens where you left off. Same try/catch treatment as history --
+ * localStorage throws in some file:// contexts and the app must not care.
+ */
+var PKEY = 'ctype.prefs';
+var THEMES = ['dark', 'light', 'amber', 'nord', 'contrast'];
+var SIZE_MIN = 12, SIZE_MAX = 34;
+
+var prefs = { theme: 'dark', size: 18, lang: '', topic: '', tier: '' };
+try {
+  var storedPrefs = JSON.parse(localStorage.getItem(PKEY) || '{}');
+  if (storedPrefs && typeof storedPrefs === 'object') {
+    if (THEMES.indexOf(storedPrefs.theme) !== -1) prefs.theme = storedPrefs.theme;
+    var sz = Number(storedPrefs.size);
+    if (sz >= SIZE_MIN && sz <= SIZE_MAX) prefs.size = sz;
+    ['lang', 'topic', 'tier'].forEach(function(k){
+      if (typeof storedPrefs[k] === 'string') prefs[k] = storedPrefs[k];
+    });
+  }
+} catch (e) { /* no persistence available; defaults stand */ }
+
+var filter = { lang: prefs.lang, topic: prefs.topic, tier: prefs.tier };
+['lang', 'topic', 'tier'].forEach(function(k){
+  if (params.has(k)) filter[k] = params.get(k) || '';
+});
+
+function savePrefs(){
+  prefs.lang = filter.lang;
+  prefs.topic = filter.topic;
+  prefs.tier = filter.tier;
+  try { localStorage.setItem(PKEY, JSON.stringify(prefs)); } catch (e) { /* ignore */ }
+}
+
+function applyTheme(){
+  document.documentElement.setAttribute('data-theme', prefs.theme);
+}
+function applySize(){
+  document.documentElement.style.setProperty('--size', prefs.size + 'px');
+  if (S) { measure(); caret.style.height = LH + 'px'; moveCaret(true); }
+}
+
 // Filter is all-optional; an empty result falls back to the whole pool so the
 // screen is never blank.
-function pool(){
-  var lang = params.get('lang'), topic = params.get('topic'), tier = params.get('tier');
+function poolFor(f){
   var out = full.filter(function(s){
-    return (!lang  || s.lang  === lang)
-        && (!topic || s.topic === topic)
-        && (!tier  || String(s.tier) === String(tier));
+    return (!f.lang  || s.lang  === f.lang)
+        && (!f.topic || s.topic === f.topic)
+        && (!f.tier  || String(s.tier) === String(f.tier));
   });
   return out.length ? out : full;
 }
+function pool(){ return poolFor(filter); }
 
 // Random, avoiding an immediate repeat. Bounded so duplicate ids in a corpus
 // cannot spin here.
@@ -623,6 +705,107 @@ function practice(){
   load(drill());          // reads S before load() replaces it
 }
 
+/* ------------------------------------------------------------------ *
+ * Switcher. Summoned with tab+s, gone again on enter or esc -- the typing
+ * screen still shows only the code and one meta line, and nothing stands
+ * between opening the page and the first keystroke.
+ * ------------------------------------------------------------------ */
+var swEl    = document.getElementById('switch');
+var swLang  = document.getElementById('swLang');
+var swTopic = document.getElementById('swTopic');
+var swTier  = document.getElementById('swTier');
+var swCount = document.getElementById('swCount');
+var SW_ROWS = ['lang', 'topic', 'tier'];
+var swOpen = false, swRow = 0, draft = null;
+
+// Topics come from the corpus, so a shard added later shows up here for free.
+function swOptions(key){
+  if (key === 'lang') return ['', 'python', 'cpp'];
+  if (key === 'tier') return ['', '1', '2', '3', '4'];
+  var seen = {};
+  full.forEach(function(s){ if (!draft.lang || s.lang === draft.lang) seen[s.topic] = true; });
+  return [''].concat(Object.keys(seen).sort());
+}
+
+function swRender(){
+  var vals = { lang: swLang, topic: swTopic, tier: swTier };
+  SW_ROWS.forEach(function(key, i){
+    var v = draft[key];
+    vals[key].textContent = v === '' ? 'all' : (key === 'tier' ? 'tier ' + v : v);
+    vals[key].parentNode.className = 'row' + (i === swRow ? ' on' : '');
+  });
+  var n = full.filter(function(s){
+    return (!draft.lang  || s.lang  === draft.lang)
+        && (!draft.topic || s.topic === draft.topic)
+        && (!draft.tier  || String(s.tier) === String(draft.tier));
+  }).length;
+  swCount.textContent = n
+    ? n + (n === 1 ? ' snippet' : ' snippets')
+    : 'no match — apply would fall back to all ' + full.length;
+}
+
+function swShow(){
+  draft = { lang: filter.lang, topic: filter.topic, tier: filter.tier };
+  swRow = 0;
+  swOpen = true;
+  appEl.hidden = true;
+  resEl.hidden = true;
+  swEl.hidden = false;
+  swRender();
+}
+
+function swClose(apply){
+  swOpen = false;
+  swEl.hidden = true;
+  if (apply) {
+    filter = draft;
+    savePrefs();
+    load(pick());           // load() unhides the typing view itself
+  } else {
+    appEl.hidden = false;
+  }
+}
+
+function swStep(delta){
+  var key = SW_ROWS[swRow];
+  var opts = swOptions(key);
+  var i = opts.indexOf(draft[key]);
+  if (i === -1) i = 0;
+  draft[key] = opts[(i + delta + opts.length) % opts.length];
+  // A topic that does not exist in the newly chosen language would match zero
+  // snippets, so reset it rather than silently showing the fallback pool.
+  if (key === 'lang' && draft.topic && swOptions('topic').indexOf(draft.topic) === -1) {
+    draft.topic = '';
+  }
+  swRender();
+}
+
+function swKey(e){
+  var k = e.key;
+  if (k === 'Escape')     { e.preventDefault(); swClose(false); return; }
+  if (k === 'Enter')      { e.preventDefault(); swClose(true);  return; }
+  if (k === 'ArrowUp')    { e.preventDefault(); swRow = (swRow + SW_ROWS.length - 1) % SW_ROWS.length; swRender(); return; }
+  if (k === 'ArrowDown' || k === 'Tab') { e.preventDefault(); swRow = (swRow + 1) % SW_ROWS.length; swRender(); return; }
+  if (k === 'ArrowLeft')  { e.preventDefault(); swStep(-1); return; }
+  if (k === 'ArrowRight') { e.preventDefault(); swStep(1);  return; }
+  if (k.length === 1) e.preventDefault();   // swallow stray typing while open
+}
+
+/* ---------- runtime look: instant, no UI, persisted ---------- */
+function cycleTheme(delta){
+  var i = THEMES.indexOf(prefs.theme);
+  prefs.theme = THEMES[(i + delta + THEMES.length) % THEMES.length];
+  applyTheme();
+  savePrefs();
+}
+function stepSize(delta){
+  var next = Math.min(SIZE_MAX, Math.max(SIZE_MIN, prefs.size + delta));
+  if (next === prefs.size) return;
+  prefs.size = next;
+  applySize();
+  savePrefs();
+}
+
 /* ---------- keyboard: no mouse needed for anything ---------- */
 var tabArmed = false;
 
@@ -631,7 +814,24 @@ window.addEventListener('keydown', function(e){
   if (e.ctrlKey && !e.altKey) return;   // browser shortcuts; ctrl+alt is AltGr
   var k = e.key;
 
+  if (swOpen) { swKey(e); return; }     // switcher owns every key while it is up
+
+  // Arrows are the only keys always present on every keyboard that a code
+  // typist never needs mid-snippet, which is why the look lives on them:
+  // instant, self-evidently visible, and no UI to put on screen.
+  if (k === 'ArrowUp')    { e.preventDefault(); stepSize(1);   return; }
+  if (k === 'ArrowDown')  { e.preventDefault(); stepSize(-1);  return; }
+  if (k === 'ArrowRight') { e.preventDefault(); cycleTheme(1);  return; }
+  if (k === 'ArrowLeft')  { e.preventDefault(); cycleTheme(-1); return; }
+
   if (k === 'Tab') { e.preventDefault(); tabArmed = true; return; }
+
+  if (tabArmed && (k === 's' || k === 'S')) {   // tab is already the leader for "next"
+    e.preventDefault();
+    tabArmed = false;
+    swShow();
+    return;
+  }
 
   if (k === 'Escape') { e.preventDefault(); tabArmed = false; restart(); return; }
 
@@ -665,6 +865,8 @@ if (document.fonts && document.fonts.ready) {
 }
 
 /* ---------- boot: a snippet is on screen before anything async runs ---------- */
+applyTheme();
+document.documentElement.style.setProperty('--size', prefs.size + 'px');
 load(pick());
 
 /* Optional local corpus. Skipped on file:// entirely — a blocked fetch there

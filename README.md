@@ -63,10 +63,38 @@ No action needs the mouse.
 | Key | |
 |---|---|
 | `Tab` `Enter` | Next snippet (Monkeytype convention; Tab's focus behaviour is suppressed) |
+| `Tab` `s` | Open the switcher: language / topic / tier |
+| `↑` `↓` | Font size, 12–34px, live |
+| `←` `→` | Cycle theme |
 | `Enter` | On the results panel: next snippet |
 | `Esc` | Restart the current snippet |
 | `p` | On the results panel: practise just the lines you made errors on |
 | `e` | On the results panel: export history as JSON |
+
+### Switching language, topic and tier without reloading
+
+`Tab` `s` brings up a three-row switcher — language, topic, tier — seeded from
+whatever is currently active. `↑`/`↓` picks the row, `←`/`→` changes its value,
+`Enter` applies and loads a matching snippet, `Esc` cancels and drops you back
+into the snippet you were on. It shows a live count of how many snippets match,
+and the topic list is read from the corpus, so a topic added later appears
+without touching the code.
+
+The typing screen itself is unchanged: still just the code and one `topic · tier`
+line. The switcher only exists while you hold it open, and nothing stands between
+loading the page and your first keystroke.
+
+### Look
+
+`↑`/`↓` change font size and `←`/`→` cycle theme, both live and mid-snippet —
+no menu, because the effect is its own feedback. Five themes ship: `dark`
+(default), `light`, `amber`, `nord`, `contrast`. A size change re-measures the
+caret lookup table, so the caret stays exactly on the active character.
+
+Theme, size, and the language/topic/tier filter all persist in `localStorage`,
+so the app reopens exactly as you left it. Precedence is **URL param > stored
+preference > default**: a link like `?lang=cpp&topic=cuda` always wins, so
+bookmarked drills behave the same no matter what you last had selected.
 
 ### Missed-line practice
 
@@ -241,6 +269,11 @@ expected stream index.
 
 ## Not in v1
 
-No accounts, leaderboards, syntax highlighting, sound, settings UI, theme
-switcher, daily snippet mode, recall mode, weak-spot dashboard, history charts,
-CLI, multiplayer, achievements, compiler, or execution.
+No accounts, leaderboards, syntax highlighting, sound, daily snippet mode,
+recall mode, weak-spot dashboard, history charts, CLI, multiplayer,
+achievements, compiler, or execution.
+
+Theme switching and a settings screen were on this list originally. They are
+in now, but only on the terms the list was protecting: summoned by keystroke,
+absent from the typing screen, and never in the way of the first keystroke.
+There is still no gear icon and no click path anywhere in the app.
