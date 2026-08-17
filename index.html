@@ -1,0 +1,661 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ctype</title>
+<link rel="icon" href="data:,"><!-- suppress the favicon request; keeps the console clean when served -->
+<style>
+  /* All theming lives here. Swapping a theme is a diff of this block only. */
+  :root{
+    --bg:#111214;
+    --fg:#e8e8ea;        /* correct */
+    --muted:#5f646a;     /* pending */
+    --dim:#292c31;       /* auto-supplied indent: between muted and bg */
+    --err:#e0576b;       /* incorrect */
+    --err-bg:#48202a;    /* incorrect space tint (a red space is invisible) */
+    --caret:#8fd0ff;
+    --font:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono","DejaVu Sans Mono",monospace;
+    --size:18px;
+    --lh:1.7;
+  }
+
+  *{box-sizing:border-box}
+  html{background:var(--bg)}
+  body{
+    margin:0;padding:6vh 4ch;min-height:100vh;
+    display:grid;place-items:center;
+    background:var(--bg);color:var(--fg);
+    font-family:var(--font);font-size:var(--size);line-height:var(--lh);
+    -webkit-font-smoothing:antialiased;
+  }
+  #wrap{width:min(70ch,100%)}
+  [hidden]{display:none !important}
+
+  /* ---- typing view: code + one small meta line, nothing else ---- */
+  #meta{
+    color:var(--muted);font-size:.66em;line-height:1;
+    letter-spacing:.1em;text-transform:lowercase;
+    margin:0 0 2.6em;user-select:none;
+  }
+  #code{position:relative;white-space:pre;overflow-x:auto;tab-size:4}
+  .line{min-height:calc(var(--size) * var(--lh))}
+  .ind{color:var(--dim)}          /* auto-supplied indentation: rendered, never typed */
+  .nl{color:transparent}          /* caret target at end of line */
+  .c.pending{color:var(--muted)}
+  .c.correct{color:var(--fg)}
+  .c.incorrect{color:var(--err)}
+  .c.sp.incorrect{background:var(--err-bg);border-radius:2px}
+
+  #caret{
+    position:absolute;top:0;left:0;width:2px;border-radius:1px;
+    background:var(--caret);will-change:transform;
+    transition:transform 80ms ease-out;
+    animation:blink 1s step-end infinite;
+  }
+  #caret.typing{animation:none}
+  #caret.bad{background:var(--err)}   /* rejected keystroke: caret flashes, nothing moves */
+  @keyframes blink{50%{opacity:0}}
+
+  /* ---- results ---- */
+  /* Size carries the emphasis; weight stays 400 so the monospace face is never
+     substituted for a bold one that the system may not have. */
+  #results .wpm b{font-size:4.2rem;font-weight:400;line-height:1;letter-spacing:-.02em}
+  #results .wpm span{color:var(--muted);font-size:1em;letter-spacing:.14em;margin-left:.7em}
+  #results .stats{color:var(--muted);font-size:.8em;margin-top:1.2em}
+  #results .who{color:var(--muted);font-size:.72em;margin-top:2.6em;word-break:break-all}
+  #results .who b{color:var(--fg);font-weight:400}
+  #results .note{color:var(--muted);font-size:.8em;margin-top:1.6em;line-height:1.5}
+  #results .hint{color:var(--dim);font-size:.66em;letter-spacing:.08em;margin-top:3.4em;user-select:none;white-space:pre}
+
+  @media (prefers-reduced-motion:reduce){
+    #caret{transition:none;animation:none}
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <main id="app">
+    <p id="meta"></p>
+    <div id="code"><div id="caret"></div></div>
+  </main>
+
+  <section id="results" hidden>
+    <div class="wpm"><b id="rWpm">0</b><span>wpm</span></div>
+    <div class="stats" id="rStats"></div>
+    <div class="who"><b id="rId"></b><br><span id="rTt"></span></div>
+    <div class="note" id="rNote"></div>
+    <div class="hint" id="rHint"></div>
+  </section>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+/* ------------------------------------------------------------------ *
+ * Embedded corpus. Ten snippets so the engine is fully usable with no
+ * corpus on disk. Written as template literals so the code reads
+ * verbatim; the leading newline is removed by normalize().
+ * ------------------------------------------------------------------ */
+var EMBEDDED = [
+  { id:'python/basics/greet', lang:'python', topic:'basics', tier:1,
+    note:'f-strings interpolate at the brace, so the braces are part of the literal.',
+    code:`
+def greet(name):
+    msg = f"hello, {name}"
+    print(msg)
+    return len(msg)
+` },
+
+  { id:'python/functions/kwargs-merge', lang:'python', topic:'functions', tier:2,
+    note:'**kwargs collects unmatched keywords into a fresh dict you own and may mutate.',
+    code:`
+def make_config(**kwargs):
+    base = {"debug": False, "level": 1, "retries": 3}
+    base.update(kwargs)
+    return {k: v for k, v in base.items() if v is not None}
+` },
+
+  { id:'python/typing/pair-iterator', lang:'python', topic:'typing', tier:3,
+    note:'A generator annotated as Iterator yields lazily; nothing is materialised.',
+    code:`
+from typing import Iterator
+
+def pairs(xs: list[int]) -> Iterator[tuple[int, int]]:
+    for i, x in enumerate(xs):
+        for y in xs[i + 1:]:
+            yield (x, y)
+` },
+
+  { id:'python/decorators/retry', lang:'python', topic:'decorators', tier:3,
+    note:'A decorator factory needs three nested scopes: args, function, call.',
+    code:`
+def retry(times=3):
+    def deco(fn):
+        def inner(*args, **kwargs):
+            for _ in range(times):
+                try:
+                    return fn(*args, **kwargs)
+                except ValueError:
+                    continue
+            raise RuntimeError("gave up")
+        return inner
+    return deco
+` },
+
+  { id:'python/classes/vec-slots', lang:'python', topic:'classes', tier:4,
+    note:'__slots__ drops the per-instance dict, so attributes are fixed at class time.',
+    code:`
+class Vec:
+    __slots__ = ("x", "y")
+
+    def __init__(self, x: float, y: float) -> None:
+        self.x, self.y = x, y
+
+    def __add__(self, o: "Vec") -> "Vec":
+        return Vec(self.x + o.x, self.y + o.y)
+` },
+
+  { id:'cpp/basics/sum-vector', lang:'cpp', topic:'basics', tier:1,
+    note:'Taking the vector by const reference copies nothing and still forbids writes.',
+    code:`
+#include <vector>
+
+int sum(const std::vector<int>& xs) {
+    int total = 0;
+    for (int x : xs) total += x;
+    return total;
+}
+` },
+
+  { id:'cpp/lambdas/capture-by-ref', lang:'cpp', topic:'lambdas', tier:2,
+    note:'[&] captures by reference: the closure aliases count, it does not copy it.',
+    code:`
+int count = 0;
+auto bump = [&](int step) { count += step; };
+std::for_each(xs.begin(), xs.end(), [&](int x) { bump(x); });
+std::cout << count << "\\n";
+` },
+
+  { id:'cpp/templates-meta/fold-expressions', lang:'cpp', topic:'templates-meta', tier:3,
+    note:'Fold expressions collapse a parameter pack without recursion.',
+    code:`
+template <typename... Ts>
+constexpr auto sum(Ts... xs) {
+    return (xs + ... + 0);
+}
+` },
+
+  { id:'cpp/templates-meta/iterator-traits', lang:'cpp', topic:'templates-meta', tier:4,
+    note:'typename marks a dependent name as a type; without it the parse is ambiguous.',
+    code:`
+template <typename It>
+using elem_t = typename std::iterator_traits<It>::value_type;
+
+template <typename It>
+constexpr bool is_random_v = std::is_same_v<
+    typename std::iterator_traits<It>::iterator_category,
+    std::random_access_iterator_tag>;
+` },
+
+  { id:'cpp/pointers/unique-chain', lang:'cpp', topic:'pointers', tier:4,
+    note:'get() hands out a non-owning view; the unique_ptr keeps the only claim.',
+    code:`
+auto head = std::make_unique<Node>();
+head->next = std::make_unique<Node>();
+
+Node* cur = head.get();
+while (cur->next != nullptr) {
+    cur = cur->next.get();
+}
+return cur->value;
+` }
+];
+
+/* ------------------------------------------------------------------ */
+var HKEY = 'ctype.history';
+var HIST_CAP = 200;
+var KEY_CAP = 5000;
+
+var code   = document.getElementById('code');
+var caret  = document.getElementById('caret');
+var metaEl = document.getElementById('meta');
+var appEl  = document.getElementById('app');
+var resEl  = document.getElementById('results');
+var rWpm   = document.getElementById('rWpm');
+var rStats = document.getElementById('rStats');
+var rId    = document.getElementById('rId');
+var rTt    = document.getElementById('rTt');
+var rNote  = document.getElementById('rNote');
+var rHint  = document.getElementById('rHint');
+
+var HINT = 'enter → next     esc → retry     e → export history';
+rHint.textContent = HINT;
+
+/* ---------- normalization (once, at load, before rendering) ---------- */
+function normalize(src){
+  var lines = String(src)
+    .replace(/\t/g, '    ')                    // tabs -> 4 spaces (literal, not tab-stop aware)
+    .split(/\r\n|\r|\n/)
+    .map(function(l){ return l.replace(/[ \t]+$/, ''); });
+  var a = 0, b = lines.length;
+  while (a < b && lines[a] === '') a++;         // strip leading blank lines
+  while (b > a && lines[b - 1] === '') b--;     // strip trailing blank lines
+  return lines.slice(a, b);                     // interior blank lines survive
+}
+
+/* ---------- pool ---------- */
+function valid(s){
+  return s && typeof s.code === 'string'
+    && (s.lang === 'python' || s.lang === 'cpp')
+    && normalize(s.code).length > 0;
+}
+function clean(s){
+  return {
+    id: String(s.id || 'untitled'),
+    lang: s.lang,
+    topic: String(s.topic || 'misc'),
+    tier: Number(s.tier) || 1,
+    code: s.code,
+    note: String(s.note || '')
+  };
+}
+
+var params = new URLSearchParams(location.search);
+var full = EMBEDDED.filter(valid).map(clean);
+
+// Filter is all-optional; an empty result falls back to the whole pool so the
+// screen is never blank.
+function pool(){
+  var lang = params.get('lang'), topic = params.get('topic'), tier = params.get('tier');
+  var out = full.filter(function(s){
+    return (!lang  || s.lang  === lang)
+        && (!topic || s.topic === topic)
+        && (!tier  || String(s.tier) === String(tier));
+  });
+  return out.length ? out : full;
+}
+
+// Random, avoiding an immediate repeat. Bounded so duplicate ids in a corpus
+// cannot spin here.
+function pick(){
+  var p = pool();
+  var c = p[Math.floor(Math.random() * p.length)];
+  for (var n = 0; n < 8 && S && p.length > 1 && c.id === S.snip.id; n++) {
+    c = p[Math.floor(Math.random() * p.length)];
+  }
+  return c;
+}
+
+/* ---------- history ---------- */
+// localStorage throws in some file:// contexts, so memory is the source of
+// truth and persistence is best-effort.
+var sessions = [];
+try {
+  var raw = localStorage.getItem(HKEY);
+  var parsed = raw ? JSON.parse(raw) : [];
+  if (Array.isArray(parsed)) sessions = parsed;
+} catch (e) { /* unavailable: run without persistence */ }
+
+function persist(){
+  var a = sessions;
+  for (;;) {
+    try { localStorage.setItem(HKEY, JSON.stringify(a)); return; }
+    catch (e) {
+      // Keystroke logs are large; on quota errors shed the oldest session and
+      // retry rather than losing the write entirely.
+      if (a.length <= 1) return;
+      a = a.slice(1);
+      sessions = a;
+    }
+  }
+}
+
+function exportHistory(){
+  try {
+    var blob = new Blob([JSON.stringify(sessions, null, 2)], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'ctype-history.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+    flash(sessions.length + ' session(s) exported');
+  } catch (e) {
+    flash('export unavailable here');
+  }
+}
+var flashT = 0;
+function flash(msg){
+  rHint.textContent = msg;
+  clearTimeout(flashT);
+  flashT = setTimeout(function(){ rHint.textContent = HINT; }, 1800);
+}
+
+/* ------------------------------------------------------------------ *
+ * Session state.
+ *
+ * The typable stream is flat: every body character of every non-blank
+ * line, with one newline item between consecutive non-blank lines.
+ * Leading whitespace is never in the stream, so it cannot reach the
+ * metrics or the keystroke log. Blank lines produce no items at all,
+ * which is what makes one Enter skip them.
+ * ------------------------------------------------------------------ */
+var S = null;
+var LH = 0;   // line box height, px
+
+function load(snip){
+  var lines = normalize(snip.code);
+  var lastNonBlank = -1;
+  for (var i = 0; i < lines.length; i++) if (lines[i] !== '') lastNonBlank = i;
+
+  var stream = [], lineEls = [];
+  var frag = document.createDocumentFragment();
+
+  lines.forEach(function(rawLine, li){
+    var d = document.createElement('div');
+    d.className = 'line';
+    lineEls.push(d);
+    frag.appendChild(d);
+
+    if (rawLine === '') return;   // blank line: rendered, empty, unreachable
+
+    var indent = rawLine.match(/^ */)[0];
+    var body = rawLine.slice(indent.length);
+
+    if (indent) {
+      var ind = document.createElement('span');
+      ind.className = 'ind';
+      ind.textContent = indent;
+      d.appendChild(ind);
+    }
+
+    for (var k = 0; k < body.length; k++) {
+      var ch = body.charAt(k);
+      var base = ch === ' ' ? 'c sp' : 'c';
+      var s = document.createElement('span');
+      s.className = base + ' pending';
+      s.textContent = ch;
+      d.appendChild(s);
+      stream.push({ kind:'c', ch:ch, li:li, el:s, base:base });
+    }
+
+    // Zero-ink span so the caret has a real box at end of line.
+    var nl = document.createElement('span');
+    nl.className = 'nl pending';
+    nl.textContent = ' ';
+    d.appendChild(nl);
+    if (li !== lastNonBlank) stream.push({ kind:'n', ch:'\n', li:li, el:nl, base:'nl' });
+  });
+
+  code.textContent = '';
+  code.appendChild(caret);
+  code.appendChild(frag);
+
+  S = {
+    snip: snip, lines: lines, stream: stream, lineEls: lineEls,
+    pos: [], i: 0, li: -1,
+    t0: null, correct: 0, total: 0, errors: 0,
+    keys: [], done: false, hOver: false, cw: 0
+  };
+
+  metaEl.textContent = snip.topic + ' · tier ' + snip.tier;
+  resEl.hidden = true;
+  appEl.hidden = false;
+
+  measure();
+  caret.style.height = LH + 'px';
+  caret.classList.remove('bad');
+  moveCaret(true);
+}
+
+// Caret geometry is measured once per render: reads are batched into a single
+// layout pass so a keystroke never touches layout.
+function measure(){
+  if (!S) return;
+  var cr = code.getBoundingClientRect();
+  var sl = code.scrollLeft, st = code.scrollTop;
+  var lineTops = S.lineEls.map(function(el){
+    var r = el.getBoundingClientRect();
+    LH = r.height || LH;
+    return r.top - cr.top + st;
+  });
+  S.pos = S.stream.map(function(it){
+    var r = it.el.getBoundingClientRect();
+    return { x: r.left - cr.left + sl, y: lineTops[it.li], li: it.li };
+  });
+  S.cw = code.clientWidth;
+  S.hOver = code.scrollWidth > code.clientWidth + 1;
+}
+
+/* ---------- rendering per keystroke: one class write, one transform ---------- */
+function mark(idx, state){
+  var it = S.stream[idx];
+  it.el.className = it.base + ' ' + state;
+}
+
+var blinkT = 0, badT = 0;
+function alive(){
+  caret.classList.add('typing');
+  clearTimeout(blinkT);
+  blinkT = setTimeout(function(){ caret.classList.remove('typing'); }, 650);
+}
+function reject(){
+  caret.classList.add('bad');
+  clearTimeout(badT);
+  badT = setTimeout(function(){ caret.classList.remove('bad'); }, 150);
+  alive();
+}
+
+function moveCaret(initial){
+  var p = S.pos[S.i];
+  if (!p) return;
+  caret.style.transform = 'translate(' + p.x + 'px,' + p.y + 'px)';
+  if (!initial) alive();
+  if (p.li !== S.li) {          // scroll only when the active line changes
+    S.li = p.li;
+    if (!initial) centerLine(p.li);
+  }
+  if (S.hOver) {                // only when a line is wider than the container
+    var pad = 40;
+    if (p.x - code.scrollLeft > S.cw - pad) code.scrollLeft = p.x - S.cw + pad;
+    else if (p.x - code.scrollLeft < pad) code.scrollLeft = Math.max(0, p.x - pad);
+  }
+}
+
+function centerLine(li){
+  var max = document.documentElement.scrollHeight - window.innerHeight;
+  if (max <= 0) return;
+  var r = S.lineEls[li].getBoundingClientRect();
+  var target = window.scrollY + r.top + r.height / 2 - window.innerHeight / 2;
+  var y = Math.max(0, Math.min(max, target));
+  if (Math.abs(y - window.scrollY) > 1) {
+    window.scrollTo({ top: y, behavior: 'smooth' });
+  }
+}
+
+/* ---------- metrics + log ---------- *
+ * Counters are keystroke-based and monotonic: backspace restores the display
+ * and the caret, it does not refund an error. Perfect typing therefore still
+ * gives exactly 100% accuracy and 0 errors.
+ * Backspaces are not logged — the log records attempts at an expected
+ * character, and a backspace has no expectation to compare against.
+ */
+function begin(){
+  if (S.t0 === null) S.t0 = performance.now();
+}
+function tally(ok){
+  S.total++;
+  if (ok) S.correct++; else S.errors++;
+}
+function log(it, typed, ok){
+  if (S.keys.length >= KEY_CAP) return;
+  S.keys.push({
+    i: S.i,
+    expected: it.ch,
+    typed: typed,
+    t: Math.round(performance.now() - S.t0),
+    correct: ok
+  });
+}
+
+function advance(){
+  S.i++;
+  if (S.i >= S.stream.length) finish();
+  else moveCaret(false);
+}
+
+/* ---------- the typing model ---------- */
+function typeChar(ch){
+  var it = S.stream[S.i];
+  if (!it) return;
+  begin();
+  if (it.kind === 'n') {
+    // Line breaks are strict: a printable key where a break is expected is an
+    // error and moves nothing.
+    log(it, ch, false); tally(false); reject();
+    return;
+  }
+  // In-line characters are forgiving: mark, count, advance anyway.
+  var ok = (ch === it.ch);
+  log(it, ch, ok); tally(ok);
+  mark(S.i, ok ? 'correct' : 'incorrect');
+  advance();
+}
+
+function typeEnter(){
+  var it = S.stream[S.i];
+  if (!it) return;
+  begin();
+  if (it.kind !== 'n') {        // mid-line Enter: error, caret does not move
+    log(it, '\n', false); tally(false); reject();
+    return;
+  }
+  log(it, '\n', true); tally(true);
+  mark(S.i, 'correct');
+  advance();                    // blank lines hold no items, so this skips them
+}
+
+function backspace(){
+  if (S.i === 0) return;
+  var prev = S.stream[S.i - 1];
+  if (prev.kind !== 'c') return;   // never crosses a line break
+  S.i--;
+  mark(S.i, 'pending');
+  moveCaret(false);
+}
+
+/* ---------- completion ---------- */
+function finish(){
+  S.done = true;
+  // Rounded first so the stored durationMs and the stored wpm/raw agree exactly.
+  var ms = Math.max(1, Math.round(performance.now() - S.t0));
+  var minutes = ms / 60000;
+  var wpm = (S.correct / 5) / minutes;
+  var rawWpm = (S.total / 5) / minutes;
+  var acc = S.total ? S.correct / S.total : 0;
+
+  sessions.push({
+    id: S.snip.id, lang: S.snip.lang, topic: S.snip.topic, tier: S.snip.tier,
+    wpm: +wpm.toFixed(2), raw: +rawWpm.toFixed(2), acc: +acc.toFixed(4),
+    errors: S.errors, durationMs: Math.round(ms), endedAt: Date.now(),
+    keys: S.keys
+  });
+  while (sessions.length > HIST_CAP) sessions.shift();   // FIFO
+  persist();
+
+  rWpm.textContent = String(Math.round(wpm));
+  rStats.textContent =
+    'raw ' + Math.round(rawWpm) +
+    '  ·  acc ' + (acc * 100).toFixed(1) + '%' +
+    '  ·  errors ' + S.errors +
+    '  ·  ' + (ms / 1000).toFixed(1) + 's';
+  rId.textContent = S.snip.id;
+  rTt.textContent = S.snip.topic + ' · tier ' + S.snip.tier;
+  rNote.textContent = S.snip.note;    // the note appears here and nowhere else
+  rHint.textContent = HINT;
+
+  appEl.hidden = true;
+  resEl.hidden = false;
+  window.scrollTo({ top: 0 });
+}
+
+function restart(){ load(S.snip); }
+function next(){ load(pick()); }
+
+/* ---------- keyboard: no mouse needed for anything ---------- */
+var tabArmed = false;
+
+window.addEventListener('keydown', function(e){
+  if (e.metaKey) return;
+  if (e.ctrlKey && !e.altKey) return;   // browser shortcuts; ctrl+alt is AltGr
+  var k = e.key;
+
+  if (k === 'Tab') { e.preventDefault(); tabArmed = true; return; }
+
+  if (k === 'Escape') { e.preventDefault(); tabArmed = false; restart(); return; }
+
+  if (k === 'Enter') {
+    e.preventDefault();
+    if (tabArmed) { tabArmed = false; next(); return; }
+    if (S.done) { next(); return; }
+    typeEnter();
+    return;
+  }
+
+  tabArmed = false;
+
+  if (S.done) {
+    if (k === 'e' || k === 'E') { e.preventDefault(); exportHistory(); }
+    return;
+  }
+  if (k === 'Backspace') { e.preventDefault(); backspace(); return; }
+  if (k.length === 1) { e.preventDefault(); typeChar(k); }
+}, { passive: false });
+
+/* ---------- geometry upkeep ---------- */
+var reT = 0;
+window.addEventListener('resize', function(){
+  clearTimeout(reT);
+  reT = setTimeout(function(){ if (S) { measure(); caret.style.height = LH + 'px'; moveCaret(true); } }, 120);
+});
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(function(){ if (S) { measure(); caret.style.height = LH + 'px'; moveCaret(true); } });
+}
+
+/* ---------- boot: a snippet is on screen before anything async runs ---------- */
+load(pick());
+
+/* Optional local corpus. Skipped on file:// entirely — a blocked fetch there
+ * logs a console error that try/catch cannot suppress, and the fallback is the
+ * same either way. A loaded corpus only affects the *next* snippet, unless the
+ * current one is still untouched, in which case it is swapped in. */
+if (location.protocol !== 'file:') {
+  (function(){
+    var dist = new URL('dist/', location.href);
+    var getJSON = function(u){
+      return fetch(u, { cache: 'no-store' }).then(function(r){
+        if (!r.ok) throw new Error(String(r.status));
+        return r.json();
+      });
+    };
+    getJSON(new URL('index.json', dist)).then(function(idx){
+      if (!Array.isArray(idx) || !idx.length) throw new Error('empty index');
+      return Promise.all(idx.map(function(p){ return getJSON(new URL(String(p), dist)); }));
+    }).then(function(shards){
+      var merged = [];
+      shards.forEach(function(sh){ if (Array.isArray(sh)) merged = merged.concat(sh); });
+      merged = merged.filter(valid).map(clean);
+      if (!merged.length) return;
+      full = merged;
+      if (S && S.t0 === null && !S.done) load(pick());
+    }).catch(function(){ /* stay on EMBEDDED */ });
+  })();
+}
+})();
+</script>
+</body>
+</html>
