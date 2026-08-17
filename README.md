@@ -17,8 +17,11 @@ open index.html          # macOS      — or just double-click it
 xdg-open index.html      # Linux
 ```
 
-To host it: push, then point GitHub Pages at the branch. `index.html` at the
-repo root is the whole site.
+To host it: push, then in **Settings → Pages** set the source to this branch
+(root). `index.html` at the repo root is the whole site; the `.nojekyll` file
+next to it tells GitHub Pages to serve the repo as static files instead of
+running it through Jekyll — without it, Jekyll would try to build the 500
+Markdown files under `snippets/` into pages on every deploy.
 
 ## The typing model
 
