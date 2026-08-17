@@ -66,7 +66,7 @@ No action needs the mouse.
 | `Tab` `s` | Open the switcher: language / topic / tier |
 | `↑` `↓` | Font size, 12–34px, live |
 | `←` `→` | Cycle theme |
-| `Enter` | On the results panel: next snippet |
+| `Enter` | On the results panel: next snippet (see the guard below) |
 | `Esc` | Restart the current snippet |
 | `p` | On the results panel: practise just the lines you made errors on |
 | `e` | On the results panel: export history as JSON |
@@ -95,6 +95,20 @@ Theme, size, and the language/topic/tier filter all persist in `localStorage`,
 so the app reopens exactly as you left it. Precedence is **URL param > stored
 preference > default**: a link like `?lang=cpp&topic=cuda` always wins, so
 bookmarked drills behave the same no matter what you last had selected.
+
+### The results panel does not vanish on an accidental Enter
+
+Finishing a snippet and reflexively pressing Enter once more — the habit of
+committing the last line — used to skip straight past your result before you
+could read it. So the bare-Enter advance is refused for 800 ms after the panel
+appears, and an autorepeating (held) Enter is refused outright no matter how
+long it is held. A refused press flashes `press enter again for the next
+snippet`, so nothing feels broken.
+
+Once the panel has settled, one press still advances — there is no permanent
+double-press tax. `Tab` `Enter` bypasses the guard entirely and advances
+immediately, on the principle that two keys is already unambiguously
+deliberate. `Esc` and `p` are never guarded either.
 
 ### Missed-line practice
 

@@ -322,6 +322,12 @@ var PKEY = 'ctype.prefs';
 var THEMES = ['dark', 'light', 'amber', 'nord', 'contrast'];
 var SIZE_MIN = 12, SIZE_MAX = 34;
 
+// How long the results panel refuses a bare Enter after appearing. Long enough
+// to absorb typing momentum, short enough that it is never in the way once you
+// have actually looked at the number.
+var GUARD_MS = 800;
+var guardUntil = 0;
+
 var prefs = { theme: 'dark', size: 18, lang: '', topic: '', tier: '' };
 try {
   var storedPrefs = JSON.parse(localStorage.getItem(PKEY) || '{}');
@@ -681,6 +687,7 @@ function finish(){
 
   appEl.hidden = true;
   resEl.hidden = false;
+  guardUntil = performance.now() + GUARD_MS;
   window.scrollTo({ top: 0 });
 }
 
@@ -837,8 +844,19 @@ window.addEventListener('keydown', function(e){
 
   if (k === 'Enter') {
     e.preventDefault();
-    if (tabArmed) { tabArmed = false; next(); return; }
-    if (S.done) { next(); return; }
+    if (tabArmed) { tabArmed = false; next(); return; }   // two keys is deliberate: never guarded
+    if (S.done) {
+      // A results panel that vanishes before you have read it is worse than one
+      // that takes a second press. The accidental Enter is either a held key
+      // still repeating, or the reflex to "commit" the last line -- both land
+      // within a few hundred ms of finishing, so both are refused.
+      if (e.repeat || performance.now() < guardUntil) {
+        flash('press enter again for the next snippet');
+        return;
+      }
+      next();
+      return;
+    }
     typeEnter();
     return;
   }
