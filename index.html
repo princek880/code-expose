@@ -230,8 +230,16 @@ var rTt    = document.getElementById('rTt');
 var rNote  = document.getElementById('rNote');
 var rHint  = document.getElementById('rHint');
 
-var HINT = 'enter → next     esc → retry     e → export history';
-rHint.textContent = HINT;
+// The practice key is offered only when there is something to practise, which
+// is also how it stays discoverable without a settings screen.
+function hintFor(missed){
+  return 'enter → next     esc → retry'
+    + (missed ? '     p → practice ' + missed + (missed > 1 ? ' missed lines' : ' missed line') : '')
+    + '     e → export history';
+}
+var curHint = hintFor(0);
+function setHint(h){ curHint = h; rHint.textContent = h; }
+setHint(curHint);
 
 /* ---------- normalization (once, at load, before rendering) ---------- */
 function normalize(src){
@@ -332,7 +340,7 @@ var flashT = 0;
 function flash(msg){
   rHint.textContent = msg;
   clearTimeout(flashT);
-  flashT = setTimeout(function(){ rHint.textContent = HINT; }, 1800);
+  flashT = setTimeout(function(){ rHint.textContent = curHint; }, 1800);
 }
 
 /* ------------------------------------------------------------------ *
@@ -399,10 +407,12 @@ function load(snip){
     snip: snip, lines: lines, stream: stream, lineEls: lineEls,
     pos: [], i: 0, li: -1,
     t0: null, correct: 0, total: 0, errors: 0,
-    keys: [], done: false, hOver: false, cw: 0
+    keys: [], missed: {}, done: false, hOver: false, cw: 0
   };
 
-  metaEl.textContent = snip.topic + ' · tier ' + snip.tier;
+  // A practice drill is a snippet of missed lines, so it says so -- otherwise a
+  // half-length snippet looks like a bug.
+  metaEl.textContent = snip.topic + ' · tier ' + snip.tier + (snip.practice ? ' · practice' : '');
   resEl.hidden = true;
   appEl.hidden = false;
 
@@ -487,9 +497,12 @@ function centerLine(li){
 function begin(){
   if (S.t0 === null) S.t0 = performance.now();
 }
-function tally(ok){
+// Missed lines are recorded as errors happen, not derived from the log, so the
+// 5000-entry log cap can never lose one.
+function tally(ok, it){
   S.total++;
-  if (ok) S.correct++; else S.errors++;
+  if (ok) S.correct++;
+  else { S.errors++; S.missed[it.li] = true; }
 }
 function log(it, typed, ok){
   if (S.keys.length >= KEY_CAP) return;
@@ -516,12 +529,12 @@ function typeChar(ch){
   if (it.kind === 'n') {
     // Line breaks are strict: a printable key where a break is expected is an
     // error and moves nothing.
-    log(it, ch, false); tally(false); reject();
+    log(it, ch, false); tally(false, it); reject();
     return;
   }
   // In-line characters are forgiving: mark, count, advance anyway.
   var ok = (ch === it.ch);
-  log(it, ch, ok); tally(ok);
+  log(it, ch, ok); tally(ok, it);
   mark(S.i, ok ? 'correct' : 'incorrect');
   advance();
 }
@@ -531,10 +544,10 @@ function typeEnter(){
   if (!it) return;
   begin();
   if (it.kind !== 'n') {        // mid-line Enter: error, caret does not move
-    log(it, '\n', false); tally(false); reject();
+    log(it, '\n', false); tally(false, it); reject();
     return;
   }
-  log(it, '\n', true); tally(true);
+  log(it, '\n', true); tally(true, it);
   mark(S.i, 'correct');
   advance();                    // blank lines hold no items, so this skips them
 }
@@ -558,12 +571,18 @@ function finish(){
   var rawWpm = (S.total / 5) / minutes;
   var acc = S.total ? S.correct / S.total : 0;
 
-  sessions.push({
+  S.missedLines = Object.keys(S.missed).map(Number).sort(function(a, b){ return a - b; });
+
+  var rec = {
     id: S.snip.id, lang: S.snip.lang, topic: S.snip.topic, tier: S.snip.tier,
     wpm: +wpm.toFixed(2), raw: +rawWpm.toFixed(2), acc: +acc.toFixed(4),
     errors: S.errors, durationMs: Math.round(ms), endedAt: Date.now(),
     keys: S.keys
-  });
+  };
+  // Only drills carry the flag, so a normal record's shape never changes and a
+  // WPM trend is just history.filter(s => !s.practice).
+  if (S.snip.practice) rec.practice = true;
+  sessions.push(rec);
   while (sessions.length > HIST_CAP) sessions.shift();   // FIFO
   persist();
 
@@ -574,9 +593,9 @@ function finish(){
     '  ·  errors ' + S.errors +
     '  ·  ' + (ms / 1000).toFixed(1) + 's';
   rId.textContent = S.snip.id;
-  rTt.textContent = S.snip.topic + ' · tier ' + S.snip.tier;
+  rTt.textContent = S.snip.topic + ' · tier ' + S.snip.tier + (S.snip.practice ? ' · practice' : '');
   rNote.textContent = S.snip.note;    // the note appears here and nowhere else
-  rHint.textContent = HINT;
+  setHint(hintFor(S.missedLines.length));
 
   appEl.hidden = true;
   resEl.hidden = false;
@@ -585,6 +604,24 @@ function finish(){
 
 function restart(){ load(S.snip); }
 function next(){ load(pick()); }
+
+// A drill over just the lines that had errors, in their original order and with
+// their original indentation. Chaining works for free: a drill is a snippet, so
+// p on its results drills whatever you missed in the drill.
+function drill(){
+  var out = [];
+  for (var n = 0; n < S.missedLines.length; n++) out.push(S.lines[S.missedLines[n]]);
+  return {
+    id: S.snip.id,          // same id, so later analysis still groups by snippet
+    lang: S.snip.lang, topic: S.snip.topic, tier: S.snip.tier,
+    code: out.join('\n'), note: S.snip.note,
+    practice: true
+  };
+}
+function practice(){
+  if (!S.missedLines || !S.missedLines.length) { flash('nothing missed'); return; }
+  load(drill());          // reads S before load() replaces it
+}
 
 /* ---------- keyboard: no mouse needed for anything ---------- */
 var tabArmed = false;
@@ -608,8 +645,9 @@ window.addEventListener('keydown', function(e){
 
   tabArmed = false;
 
-  if (S.done) {
+  if (S.done) {   // results panel: the only place a bare letter is a command
     if (k === 'e' || k === 'E') { e.preventDefault(); exportHistory(); }
+    else if (k === 'p' || k === 'P') { e.preventDefault(); practice(); }
     return;
   }
   if (k === 'Backspace') { e.preventDefault(); backspace(); return; }
