@@ -33,6 +33,14 @@ jobs:
         uses: actions/checkout@v4
       - name: Setup Pages
         uses: actions/configure-pages@v5
+        with:
+          # Pages hasn't been switched to "GitHub Actions" as its build
+          # source yet for this repo, which makes the site-config lookup
+          # 404. This has the action attempt to enable it itself instead
+          # of just failing; if the account disallows that, Settings ->
+          # Pages -> Build and deployment -> Source -> GitHub Actions
+          # still has to be set by hand once.
+          enablement: true
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
